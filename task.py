@@ -5,20 +5,33 @@ import pickle
 import uuid
 import logging
 
+from raava import const
+
 
 ##### Public constants #####
-LOGGER_NAME = "raava-task"
+BUILTIN_ID = "_raava_builtin"
+BUILTIN_ORIG = "_raava_builtin_orig"
 
 
 ##### Private objects #####
-_logger = logging.getLogger(LOGGER_NAME)
+_logger = logging.getLogger(const.LOGGER_NAME)
 
 
 ##### Public methods #####
 def setup_builtins(builtins_dict):
     for (name, method) in builtins_dict.items():
-        setattr(builtins, name, _make_builtin(method))
-        _logger.debug("mapped builtin \"%s\" --> %s.%s", name, method.__module__, method.__name__)
+        method = _make_builtin(method)
+        setattr(method, BUILTIN_ID, None)
+        setattr(builtins, name, method)
+        _logger.debug("mapped built-in \"%s\" --> %s.%s", name, method.__module__, method.__name__)
+
+def cleanup_builtins():
+    for name in dir(builtins):
+        method = getattr(builtins, name)
+        if hasattr(method, BUILTIN_ID):
+            orig = getattr(method, BUILTIN_ORIG)
+            delattr(builtins, name)
+            _logger.debug("removed built-in \"%s\" --> %s.%s", name, orig.__module__, orig.__name__)
 
 
 ##### Public classes #####
@@ -77,8 +90,14 @@ class TaskManager:
 ##### Private methods #####
 def _make_builtin(method):
     def builtin_method(*args_tuple, **kwargs_dict):
-        cont = threading.current_thread().get_cont()
-        return method(cont, *args_tuple, **kwargs_dict)
+        current_thread = threading.current_thread()
+        if not isinstance(current_thread, _TaskThread):
+            _logger.warn("built-in wrapper for method %s.%s has been called not from a continulet", method.__module__, method.__name__)
+            task = None
+        else :
+            task = current_thread.get_task()
+        return method(task, *args_tuple, **kwargs_dict)
+    setattr(builtin_method, BUILTIN_ORIG, method)
     return builtin_method
 
 
@@ -89,6 +108,7 @@ class _Task:
         self._handler = handler
         self._state = state
         self._cont = None
+        self._is_restored_flag = False
 
     def get_cont(self):
         return self._cont
@@ -102,6 +122,7 @@ class _Task:
             _logger.debug("restoring an old state ...")
             cont = pickle.loads(self._state)
             assert isinstance(cont, _continuation.continulet)
+            self._is_restored_flag = True
         else:
             raise RuntimeError("Required handler OR state")
         _logger.debug("... continulet is ok: cont=%d", id(cont))
@@ -125,12 +146,12 @@ class _Task:
 
 class _TaskThread(threading.Thread):
     def __init__(self, on_save, on_switch, on_error, *args_tuple, **kwargs_dict):
-        threading.Thread.__init__(self)
         self._on_save = on_save
         self._on_switch = on_switch
         self._on_error = on_error
         self._stop_flag = False
         self._task = _Task(*args_tuple, **kwargs_dict)
+        threading.Thread.__init__(self)
 
 
     ### Public ###
@@ -138,8 +159,8 @@ class _TaskThread(threading.Thread):
     def stop(self):
         self._stop_flag = True
 
-    def get_cont(self):
-        return self._task.get_cont()
+    def get_task(self):
+        return self._task
 
 
     ### Private ###
