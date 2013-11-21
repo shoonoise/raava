@@ -56,11 +56,11 @@ class TaskManager:
         task_thread.stop()
 
     def shutdown(self):
-        for task_id in self._threads_dict.keys():
+        for task_id in tuple(self._threads_dict.keys()):
             self.remove(task_id)
 
     def alive(self):
-        return len( item for item in self._threads_dict.values() if item.is_alive() )
+        return len([ item for item in self._threads_dict.values() if item.is_alive() ])
 
 
     ### Private ###
@@ -96,6 +96,7 @@ def _make_builtin(method):
             task = None
         else :
             task = current_thread.get_task()
+        del current_thread
         return method(task, *args_tuple, **kwargs_dict)
     setattr(builtin_method, BUILTIN_ORIG, method)
     return builtin_method
@@ -110,8 +111,11 @@ class _Task:
         self._cont = None
         self._is_restored_flag = False
 
-    def get_cont(self):
-        return self._cont
+    def checkpoint(self, reason = None) :
+        return self._cont.switch(reason)
+
+    def is_restored(self):
+        return self._is_restored_flag
 
     def __iter__(self):
         assert self._cont is None
