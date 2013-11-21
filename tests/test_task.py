@@ -85,7 +85,7 @@ class TestTaskManager(unittest.TestCase):
         while manager.alive():
             pass
         self.assertIsNotNone(self._state)
-        
+
         manager.restore(task_id, self._state)
         while manager.alive():
             pass
