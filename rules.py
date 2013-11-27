@@ -1,3 +1,13 @@
+import builtins
+import logging
+
+from . import const
+
+
+##### Private objects #####
+_logger = logging.getLogger(const.LOGGER_NAME)
+
+
 ##### Public constants #####
 EVENT_LEVEL = "level"
 EXTRA_URGENCY = "urgency"
@@ -22,12 +32,30 @@ class HANDLER:
 
 
 ##### Private constants #####
+_BUILTIN_ID = "_raava_builtin"
+
 class _FILTER:
     EVENT = "event_filters_dict"
     EXTRA = "extra_filters_dict"
 
 
 ##### Public methods #####
+def setup_builtins(builtins_dict):
+    for (name, obj) in builtins_dict.items():
+        setattr(obj, _BUILTIN_ID, None)
+        setattr(builtins, name, obj)
+        _logger.info("Mapped built-in \"%s\" --> %s", name, str(obj))
+
+def cleanup_builtins():
+    for name in dir(builtins):
+        obj = getattr(builtins, name)
+        if hasattr(obj, _BUILTIN_ID):
+            delattr(builtins, name)
+            delattr(obj, _BUILTIN_ID)
+            _logger.info("Removed built-in \"%s\" --> %s", name, str(obj))
+
+
+###
 def _make_matcher(filters_type):
     def matcher(**filters_dict):
         def make_method(method):

@@ -1,1 +1,1 @@
-LOGGER_NAME = "raava-core"
+LOGGER_NAME = "raava"

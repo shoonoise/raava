@@ -1,7 +1,5 @@
 import _continuation
 import threading
-import builtins
-import types
 import pickle
 import time
 import logging
@@ -15,9 +13,6 @@ from . import zoo
 
 
 ##### Private constants #####
-_BUILTIN_ID = "_raava_builtin"
-_BUILTIN_ORIG = "_raava_builtin_orig"
-
 _TASK_THREAD = "thread"
 _TASK_LOCK   = "lock"
 
@@ -27,24 +22,17 @@ _logger = logging.getLogger(const.LOGGER_NAME)
 
 
 ##### Public methods #####
-def setup_builtins(builtins_dict):
-    for (name, attr) in builtins_dict.items():
-        orig = None
-        if isinstance(attr, (types.FunctionType, types.LambdaType)):
-            orig = attr
-            attr = _make_builtin_method(attr)
-        setattr(attr, _BUILTIN_ORIG, orig)
-        setattr(attr, _BUILTIN_ID, None)
-        setattr(builtins, name, attr)
-        _logger.info("Mapped built-in \"%s\" --> %s.%s", name, attr.__module__, attr.__name__)
-
-def cleanup_builtins():
-    for name in dir(builtins):
-        attr = getattr(builtins, name)
-        if hasattr(attr, _BUILTIN_ID):
-            orig = getattr(attr, _BUILTIN_ORIG)
-            delattr(builtins, name)
-            _logger.info("Removed built-in \"%s\" --> %s.%s", name, orig.__module__, orig.__name__)
+def make_task_builtin(method):
+    def builtin_method(*args_tuple, **kwargs_dict):
+        current_thread = threading.current_thread()
+        if not isinstance(current_thread, _TaskThread):
+            _logger.warn("Built-in wrapper for method %s.%s has been called not from a continulet", method.__module__, method.__name__)
+            task = None
+        else :
+            task = current_thread.get_task() # pylint: disable=E1103
+        del current_thread
+        return method(task, *args_tuple, **kwargs_dict)
+    return builtin_method
 
 
 ##### Public classes #####
@@ -263,18 +251,4 @@ class _Task:
         else:
             _logger.debug("Continulet is finished: cont=%d", id(self._cont))
             raise StopIteration
-
-
-##### Private methods #####
-def _make_builtin_method(method):
-    def builtin_method(*args_tuple, **kwargs_dict):
-        current_thread = threading.current_thread()
-        if not isinstance(current_thread, _TaskThread):
-            _logger.warn("Built-in wrapper for method %s.%s has been called not from a continulet", method.__module__, method.__name__)
-            task = None
-        else :
-            task = current_thread.get_task() # pylint: disable=E1103
-        del current_thread
-        return method(task, *args_tuple, **kwargs_dict)
-    return builtin_method
 
