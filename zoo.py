@@ -25,6 +25,7 @@ RUNNING_NODE_JOB_ID   = READY_JOB_ID
 RUNNING_NODE_ADDED    = READY_ADDED
 RUNNING_NODE_SPLITTED = READY_SPLITTED
 RUNNING_NODE_FINISHED = "finished"
+RUNNING_NODE_HANDLER  = READY_HANDLER
 RUNNING_NODE_STATE    = "state"
 RUNNING_NODE_STATUS   = "status"
 RUNNING_NODE_LOCK     = "lock"
@@ -34,6 +35,9 @@ class TASK_STATUS:
     NEW      = "new"
     READY    = "ready"
     FINISHED = "finished"
+
+WRITE_TRANSACTION_CREATE   = "create"
+WRITE_TRANSACTION_SET_DATA = "set_data"
 
 
 ##### Private objects #####
@@ -59,12 +63,15 @@ def init(client):
 def join(*args_tuple):
     return "/".join(args_tuple)
 
-def check_write_transaction(name, write_list, results_list):
+def write_transaction(name, client, method_name, pairs_list):
+    trans = client.transaction()
+    for (path, value) in pairs_list:
+        getattr(trans, method_name)(path, value)
     ok_flag = True
-    for (index, result) in enumerate(results_list):
+    for (index, result) in enumerate(trans.commit()):
         if isinstance(result, Exception):
             ok_flag = False
-            _logger.error("Failed transaction on %s: %s=%s; err=%s", name, write_list[index][0], write_list[index][1], result.__class__.__name__)
+            _logger.error("Failed transaction \"%s\": %s=%s; err=%s", name, pairs_list[index][0], pairs_list[index][1], result.__class__.__name__)
     if not ok_flag:
-        raise RuntimeError("Failed transaction: %s", name)
+        raise RuntimeError("Failed transaction: %s" % (name))
 

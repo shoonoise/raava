@@ -17,7 +17,7 @@ _logger = logging.getLogger(const.LOGGER_NAME)
 
 
 ##### Public classes #####
-class Splitter(threading.Thread):
+class SplitterThread(threading.Thread):
     def __init__(self, client, handlers, queue_timeout, *args_tuple, **kwargs_dict):
         self._client = client
         self._handlers = handlers
