@@ -209,7 +209,7 @@ class _Task:
         elif not self._state is None:
             _logger.debug("Restoring the old state of task: %s ...", self._task_id)
             cont = pickle.loads(self._state)
-            assert isinstance(cont, _continuation.continulet), "The state of %s::%s is a garbage!" % (self._job_id, self._task_id)
+            assert isinstance(cont, _continuation.continulet), "The state of %s is a garbage!" % (self._task_id)
         else:
             raise RuntimeError("Required handler OR state")
         _logger.debug("... continulet is OK: %s", self._task_id)
