@@ -5,8 +5,6 @@ import copy
 import time
 import logging
 
-import kazoo.recipe.queue
-
 from . import const
 from . import rules
 from . import zoo
@@ -18,14 +16,14 @@ _logger = logging.getLogger(const.LOGGER_NAME)
 
 ##### Public classes #####
 class SplitterThread(threading.Thread):
-    def __init__(self, client, handlers, queue_timeout, *args_tuple, **kwargs_dict):
+    def __init__(self, client, handlers, queue_timeout):
         self._client = client
         self._handlers = handlers
         self._queue_timeout = queue_timeout
-        self._input_queue = kazoo.recipe.queue.LockingQueue(self._client, zoo.INPUT_PATH)
-        self._ready_queue = kazoo.recipe.queue.LockingQueue(self._client, zoo.READY_PATH)
+        self._input_queue = self._client.LockingQueue(zoo.INPUT_PATH)
+        self._ready_queue = self._client.LockingQueue(zoo.READY_PATH)
         self._stop_flag = False
-        threading.Thread.__init__(self, *args_tuple, **kwargs_dict)
+        threading.Thread.__init__(self)
 
 
     ### Public ###

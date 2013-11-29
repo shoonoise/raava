@@ -4,8 +4,6 @@ import pickle
 import time
 import logging
 
-import kazoo.recipe.queue
-import kazoo.recipe.lock
 import kazoo.exceptions
 
 from . import const
@@ -34,16 +32,16 @@ def make_task_builtin(method):
 
 ##### Public classes #####
 class WorkerThread(threading.Thread):
-    def __init__(self, client, queue_timeout, assign_interval, assign_delay, *args_tuple, **kwargs_dict):
+    def __init__(self, client, queue_timeout, assign_interval, assign_delay):
         self._client = client
         self._queue_timeout = queue_timeout
         self._assign_interval = assign_interval
         self._assign_delay = assign_delay
-        self._ready_queue = kazoo.recipe.queue.LockingQueue(self._client, zoo.READY_PATH)
+        self._ready_queue = self._client.LockingQueue(zoo.READY_PATH)
         self._saver_lock = threading.Lock()
         self._threads_dict = {}
         self._stop_flag = False
-        threading.Thread.__init__(self, *args_tuple, **kwargs_dict)
+        threading.Thread.__init__(self)
 
 
     ### Public ###
@@ -122,7 +120,7 @@ class WorkerThread(threading.Thread):
         zoo.write_transaction("init_task", self._client, zoo.WRITE_TRANSACTION_CREATE, pairs_list)
         _logger.info("Created a new running for job: %s; task: %s", job_id, task_id)
 
-        lock = kazoo.recipe.lock.Lock(self._client, zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_NODE_LOCK))
+        lock = self._client.Lock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_NODE_LOCK))
         if not lock.acquire(False):
             raise RuntimeError("Fresh job was captured by another worker")
         return ((job_id, task_id), handler, lock)
