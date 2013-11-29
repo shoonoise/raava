@@ -147,12 +147,11 @@ class WorkerThread(threading.Thread):
             pairs_dict[zoo.RUNNING_NODE_STATUS] = zoo.TASK_STATUS.FINISHED
         else:
             pairs_dict[zoo.RUNNING_NODE_STATUS] = zoo.TASK_STATUS.READY
-        pairs_list = [
-            (zoo.join(zoo.RUNNING_PATH, task_id, node), pickle.dumps(value))
-            for (node, value) in pairs_dict.items()
-        ]
         try:
-            zoo.write_transaction("saver", self._client, zoo.WRITE_TRANSACTION_SET_DATA, pairs_list)
+            zoo.write_transaction("saver", self._client, zoo.WRITE_TRANSACTION_SET_DATA, [
+                    (zoo.join(zoo.RUNNING_PATH, task_id, node), pickle.dumps(value))
+                    for (node, value) in pairs_dict.items()
+                ])
         finally:
             self._threads_dict[task_id][_TASK_LOCK].release()
             if state is None:
