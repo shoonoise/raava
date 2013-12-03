@@ -21,15 +21,16 @@ class EventsApi:
         self._client = client
         self._input_queue = kazoo.recipe.queue.LockingQueue(self._client, zoo.INPUT_PATH)
 
-    def add_event(self, data):
+    def add_event(self, data, root_job_id, parent_task_id):
         event_dict = json.loads(data)
-        assert isinstance(event_dict, dict)
+        event_root = rules.EventRoot(event_dict, extra={ rules.EXTRA_HANDLER : rules.HANDLER.ON_EVENT })
         job_id = str(uuid.uuid4())
         input_dict = {
-            zoo.INPUT_JOB_ID: job_id,
-            zoo.INPUT_EVENT:  rules.EventRoot(event_dict, extra={ rules.EXTRA_HANDLER : rules.HANDLER.ON_EVENT }),
-            zoo.INPUT_ADDED:  time.time(),
+            zoo.INPUT_ROOT_JOB_ID:    root_job_id,
+            zoo.INPUT_PARENT_TASK_ID: parent_task_id,
+            zoo.INPUT_JOB_ID:         job_id,
+            zoo.INPUT_EVENT:          event_root,
+            zoo.INPUT_ADDED:          time.time(),
         }
         self._input_queue.put(pickle.dumps(input_dict))
         _logger.info("Registered job %s", job_id)
-
