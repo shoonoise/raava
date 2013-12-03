@@ -48,12 +48,18 @@ class SplitterThread(threading.Thread):
         for handler in handlers_set:
             job_id = input_dict[zoo.INPUT_JOB_ID]
             task_id = str(uuid.uuid4())
+            event_root = copy.copy(input_dict[zoo.INPUT_EVENT])
             self._ready_queue.put(pickle.dumps({
-                    zoo.READY_JOB_ID:   job_id,
-                    zoo.READY_TASK_ID:  task_id,
-                    zoo.READY_HANDLER:  lambda: handler(copy.copy(input_dict[zoo.INPUT_EVENT])),
-                    zoo.READY_ADDED:    input_dict[zoo.INPUT_ADDED],
-                    zoo.READY_SPLITTED: time.time(),
+                    zoo.READY_ROOT_JOB_ID:    input_dict[zoo.INPUT_ROOT_JOB_ID],
+                    zoo.READY_PARENT_TASK_ID: input_dict[zoo.INPUT_PARENT_TASK_ID],
+                    zoo.READY_JOB_ID:         job_id,
+                    zoo.READY_TASK_ID:        task_id,
+                    zoo.READY_HANDLER:        pickle.dumps(lambda: handler(event_root)),
+                    zoo.READY_STATE:          None,
+                    zoo.READY_ADDED:          input_dict[zoo.INPUT_ADDED],
+                    zoo.READY_SPLITTED:       time.time(),
+                    zoo.READY_CREATED:        None,
+                    zoo.READY_RECYCLED:       None,
                 }))
             _logger.info("Splitted %s --> %s; handler: %s.%s", job_id, task_id, handler.__module__, handler.__name__)
 

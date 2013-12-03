@@ -4,8 +4,6 @@ import pickle
 import time
 import logging
 
-import kazoo.exceptions
-
 from . import const
 from . import zoo
 
@@ -32,11 +30,9 @@ def make_task_builtin(method):
 
 ##### Public classes #####
 class WorkerThread(threading.Thread):
-    def __init__(self, client, queue_timeout, assign_interval, assign_delay):
+    def __init__(self, client, queue_timeout):
         self._client = client
         self._queue_timeout = queue_timeout
-        self._assign_interval = assign_interval
-        self._assign_delay = assign_delay
         self._ready_queue = self._client.LockingQueue(zoo.READY_PATH)
         self._saver_lock = threading.Lock()
         self._threads_dict = {}
@@ -55,83 +51,54 @@ class WorkerThread(threading.Thread):
     ### Private ###
 
     def run(self):
-        last_assign = 0
         while not self._stop_flag:
-            if last_assign + self._assign_interval <= time.time():
-                self._assign_orphan()
-                last_assign = time.time()
-
             data = self._ready_queue.get(self._queue_timeout)
             if data is None:
                 continue
-            ((job_id, task_id), handler, lock) = self._init_task(pickle.loads(data))
-            self._spawn_task(job_id, task_id, handler, None, lock)
+            self._run_task(pickle.loads(data))
             self._ready_queue.consume()
 
-    def _assign_orphan(self):
-        tasks_list = self._client.get_children(zoo.RUNNING_PATH)
-        for task_id in set(tasks_list).difference(self._threads_dict):
-            if self._stop_flag:
-                break
+    def _run_task(self, ready_dict):
+        root_job_id    = ready_dict[zoo.READY_ROOT_JOB_ID]
+        parent_task_id = ready_dict[zoo.READY_ROOT_JOB_ID]
+        job_id         = ready_dict[zoo.READY_JOB_ID]
+        task_id        = ready_dict[zoo.READY_TASK_ID]
+        handler        = ready_dict[zoo.READY_HANDLER]
+        state          = ready_dict[zoo.READY_STATE]
+        assert not task_id in self._threads_dict, "Duplicating tasks"
 
-            get_data = ( lambda node: pickle.loads(self._client.get(zoo.join(zoo.RUNNING_PATH, task_id, node))[0]) )
-            try:
-                job_id = get_data(zoo.RUNNING_NODE_JOB_ID)
-                created = get_data(zoo.RUNNING_NODE_CREATED)
-                finished = get_data(zoo.RUNNING_NODE_FINISHED)
-                handler = get_data(zoo.RUNNING_NODE_HANDLER)
-                state = get_data(zoo.RUNNING_NODE_STATE)
-            except kazoo.exceptions.NoNodeError:
-                continue
-
-            if created + self._assign_delay > time.time() or not finished is None: # Ignore fresh or finished
-                continue
-
-            lock = kazoo.recipe.lock.Lock(self._client, zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_NODE_LOCK))
-            if not lock.acquire(False):
-                continue
-            try: # Skip deleted
-                get_data(zoo.RUNNING_NODE_CREATED)
-            except kazoo.exceptions.NoNodeError:
-                lock.release()
-                continue
-
-            self._spawn_task(job_id, task_id, handler, state, lock)
-
-    def _init_task(self, ready_dict):
-        job_id = ready_dict[zoo.READY_JOB_ID]
-        task_id = ready_dict[zoo.READY_TASK_ID]
-        handler = ready_dict[zoo.READY_HANDLER]
         pairs_list = [
             (zoo.join(zoo.RUNNING_PATH, task_id), b""),
         ] + [
             (zoo.join(zoo.RUNNING_PATH, task_id, node), pickle.dumps(value))
             for (node, value) in (
-                    (zoo.RUNNING_NODE_JOB_ID,   job_id),
-                    (zoo.RUNNING_NODE_ADDED,    ready_dict[zoo.READY_ADDED]),
-                    (zoo.RUNNING_NODE_SPLITTED, ready_dict[zoo.READY_SPLITTED]),
-                    (zoo.RUNNING_NODE_FINISHED, None),
-                    (zoo.RUNNING_NODE_HANDLER,  handler),
-                    (zoo.RUNNING_NODE_STATE,    None),
-                    (zoo.RUNNING_NODE_STATUS,   zoo.TASK_STATUS.NEW),
-                    (zoo.RUNNING_NODE_CREATED,  time.time()),
+                    (zoo.RUNNING_NODE_ROOT_JOB_ID,    root_job_id),
+                    (zoo.RUNNING_NODE_PARENT_TASK_ID, parent_task_id),
+                    (zoo.RUNNING_NODE_JOB_ID,         job_id),
+                    (zoo.RUNNING_NODE_HANDLER,        ready_dict[zoo.READY_HANDLER]),
+                    (zoo.RUNNING_NODE_STATE,          state),
+                    (zoo.RUNNING_NODE_STATUS,         ( zoo.TASK_STATUS.NEW if state is None else zoo.TASK_STATUS.READY )),
+                    (zoo.RUNNING_NODE_ADDED,          ready_dict[zoo.READY_ADDED]),
+                    (zoo.RUNNING_NODE_SPLITTED,       ready_dict[zoo.READY_SPLITTED]),
+                    (zoo.RUNNING_NODE_CREATED,        ( ready_dict[zoo.READY_CREATED] or time.time() )),
+                    (zoo.RUNNING_NODE_RECYCLED,       time.time()), # FIXME: ready_dict[zoo.READY_RECYCLED]),
+                    (zoo.RUNNING_NODE_FINISHED,       None),
                 )
         ]
         zoo.write_transaction("init_task", self._client, zoo.WRITE_TRANSACTION_CREATE, pairs_list)
-        _logger.info("Created a new running for job: %s; task: %s", job_id, task_id)
-
         lock = self._client.Lock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_NODE_LOCK))
-        if not lock.acquire(False):
-            raise RuntimeError("Fresh job was captured by another worker")
-        return ((job_id, task_id), handler, lock)
+        assert lock.acquire(False), "Fresh job was captured by another worker"
 
-    def _spawn_task(self, job_id, task_id, handler, state, lock):
-        task_thread = _TaskThread(job_id, task_id, ( handler if state is None else None ), state, self._saver)
+        handler = ( ready_dict[zoo.READY_HANDLER] if state is None else None )
+        task_thread = _TaskThread(root_job_id, parent_task_id, job_id, task_id, handler, state, self._saver)
         self._threads_dict[task_id] = {
             _TASK_THREAD: task_thread,
             _TASK_LOCK:   lock,
         }
         task_thread.start()
+        message = ( "Spawned the new job" if state is None else "Respawned the old job" )
+        _logger.info("%s: %s; task: %s (root: %s)", message, job_id, task_id, root_job_id)
+
 
     def _saver(self, task_id, state):
         self._saver_lock.acquire()
@@ -161,19 +128,26 @@ class WorkerThread(threading.Thread):
 
 ##### Private classes #####
 class _TaskThread(threading.Thread):
-    def __init__(self, job_id, task_id, handler, state, saver):
-        self._job_id = job_id # TODO: control
+    def __init__(self, root_job_id, parent_task_id, job_id, task_id, handler, state, saver):
+        self._root_job_id = root_job_id # TODO: control
+        self._parent_task_id = parent_task_id # TODO: subtasks
         self._task_id = task_id
         self._saver = saver
-        self._task = _Task(task_id, handler, state)
+        self._task = _Task(root_job_id, parent_task_id, job_id, task_id, handler, state)
         self._stop_flag = False
         threading.Thread.__init__(self)
+
+
+    ### Public ###
 
     def get_task(self):
         return self._task
 
     def stop(self):
         self._stop_flag = True
+
+
+    ### Private ###
 
     def run(self):
         _logger.info("Run the task %s ...", self._task_id)
@@ -188,21 +162,42 @@ class _TaskThread(threading.Thread):
             _logger.info("Task %s is stopped", self._task_id)
 
 class _Task:
-    def __init__(self, task_id, handler, state):
+    def __init__(self, root_job_id, parent_task_id, job_id, task_id, handler, state):
         assert len(tuple(filter(None, (handler, state)))) == 1, "Required handler OR state"
+        self._root_job_id = root_job_id
+        self._parent_task_id = parent_task_id
+        self._job_id = job_id
         self._task_id = task_id
         self._handler = handler
         self._state = state
         self._cont = None
 
+
+    ### Public ###
+
+    def get_root_job_id(self):
+        return self._root_job_id
+
+    def get_parent_task_id(self):
+        return self._parent_task_id
+
+    def get_job_id(self):
+        return self._job_id
+
+    def get_task_id(self):
+        return self._task_id
+
     def checkpoint(self, data = None):
         self._cont.switch(data)
+
+    ###
 
     def init_cont(self):
         assert self._cont is None, "Continulet is already constructed"
         if not self._handler is None:
             _logger.debug("Creating a new continulet for task: %s...", self._task_id)
-            cont = _continuation.continulet(lambda _: self._handler())
+            handler = pickle.loads(self._handler)
+            cont = _continuation.continulet(lambda _: handler())
         elif not self._state is None:
             _logger.debug("Restoring the old state of task: %s ...", self._task_id)
             cont = pickle.loads(self._state)
@@ -228,59 +223,3 @@ class _Task:
             _logger.exception("Exception in cont %s", self._task_id)
             return (None, err, None)
 
-"""
-class _TaskThread(threading.Thread):
-    def __init__(self, job_id, task_id, handler, state, saver):
-        assert len(tuple(filter(None, (handler, state)))) == 1, "Required handler OR state"
-        self._job_id = job_id # TODO: control
-        self._task_id = task_id
-        self._handler = handler
-        self._state = state
-        self._saver = saver
-        self._cont = None
-        self._stop_flag = False
-        threading.Thread.__init__(self)
-
-
-    ### Public ###
-
-    def stop(self):
-        self._stop_flag = True
-
-    def get_cont(self):
-        return self._cont
-
-
-    ### Private ###
-
-    def run(self):
-        self._init_cont()
-        while not self._stop_flag and self._cont.is_pending():
-            _logger.debug("Cont %s entering ...", self._task_id)
-            try:
-                retval = self._cont.switch()
-                state = pickle.dumps(self._cont)
-                _logger.debug("Cont %s return --> %s", self._task_id, str(retval))
-            except Exception:
-                state = None # XXX: Drop the failed task
-                _logger.exception("Exception in cont %s", self._task_id)
-            self._saver(self._task_id, state)
-            if state is None:
-                return
-        self._saver(self._task_id, None)
-        _logger.debug("Cont %s is normally finished", self._task_id)
-       
-    def _init_cont(self):
-        assert self._cont is None, "Continulet is already constructed"
-        if not self._handler is None:
-            _logger.debug("Creating a new continulet for task: %s...", self._task_id)
-            cont = _continuation.continulet(lambda _: self._handler())
-        elif not self._state is None:
-            _logger.debug("Restoring the old state of task: %s ...", self._task_id)
-            cont = pickle.loads(self._state)
-            assert isinstance(cont, _continuation.continulet), "The state of %s::%s is a garbage!" % (self._job_id, self._task_id)
-        else:
-            raise RuntimeError("Required handler OR state")
-        _logger.debug("... continulet is OK: %s", self._task_id)
-        self._cont = cont
-"""

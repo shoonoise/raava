@@ -11,25 +11,35 @@ INPUT_PATH   = "/input"
 READY_PATH   = "/ready"
 RUNNING_PATH = "/running"
 
-INPUT_EVENT  = "event"
+INPUT_ROOT_JOB_ID    = "root_job_id"
+INPUT_PARENT_TASK_ID = "parent_task_id"
 INPUT_JOB_ID = "job_id"
+INPUT_EVENT  = "event"
 INPUT_ADDED  = "added"
 
+READY_ROOT_JOB_ID    = INPUT_ROOT_JOB_ID
+READY_PARENT_TASK_ID = INPUT_PARENT_TASK_ID
 READY_JOB_ID   = INPUT_JOB_ID
 READY_TASK_ID  = "task_id"
 READY_HANDLER  = "handler"
+READY_STATE    = "state"
 READY_ADDED    = INPUT_ADDED
 READY_SPLITTED = "splitted"
+READY_CREATED  = "created"
+READY_RECYCLED = "recycled"
 
+RUNNING_NODE_ROOT_JOB_ID    = READY_ROOT_JOB_ID
+RUNNING_NODE_PARENT_TASK_ID = READY_PARENT_TASK_ID
 RUNNING_NODE_JOB_ID   = READY_JOB_ID
+RUNNING_NODE_HANDLER  = READY_HANDLER
+RUNNING_NODE_STATE    = READY_STATE
+RUNNING_NODE_STATUS   = "status"
 RUNNING_NODE_ADDED    = READY_ADDED
 RUNNING_NODE_SPLITTED = READY_SPLITTED
+RUNNING_NODE_CREATED  = READY_CREATED
+RUNNING_NODE_RECYCLED = READY_RECYCLED
 RUNNING_NODE_FINISHED = "finished"
-RUNNING_NODE_HANDLER  = READY_HANDLER
-RUNNING_NODE_STATE    = "state"
-RUNNING_NODE_STATUS   = "status"
 RUNNING_NODE_LOCK     = "lock"
-RUNNING_NODE_CREATED  = "created"
 
 class TASK_STATUS:
     NEW      = "new"
@@ -42,6 +52,11 @@ WRITE_TRANSACTION_SET_DATA = "set_data"
 
 ##### Private objects #####
 _logger = logging.getLogger(const.LOGGER_NAME)
+
+
+##### Exceptions #####
+class TransactionError(kazoo.exceptions.KazooException):
+    pass
 
 
 ##### Public methods #####
@@ -63,15 +78,26 @@ def init(client):
 def join(*args_tuple):
     return "/".join(args_tuple)
 
+def check_transaction(name, results_list, pairs_list = None):
+    ok_flag = True
+    for (index, result) in enumerate(results_list):
+        if isinstance(result, Exception):
+            ok_flag = False
+            if not pairs_list is None:
+                _logger.error("Failed the part of transaction \"%s\": %s=%s; err=%s",
+                    name,
+                    pairs_list[index][0], # Node
+                    pairs_list[index][1], # Data
+                    result.__class__.__name__,
+                )
+    if not ok_flag:
+        if pairs_list is None:
+            _logger.error("Failed transaction \"%s\": %s", name, results_list)
+        raise TransactionError("Failed transaction: %s" % (name))
+
 def write_transaction(name, client, method_name, pairs_list):
     trans = client.transaction()
     for (path, value) in pairs_list:
         getattr(trans, method_name)(path, value)
-    ok_flag = True
-    for (index, result) in enumerate(trans.commit()):
-        if isinstance(result, Exception):
-            ok_flag = False
-            _logger.error("Failed transaction \"%s\": %s=%s; err=%s", name, pairs_list[index][0], pairs_list[index][1], result.__class__.__name__)
-    if not ok_flag:
-        raise RuntimeError("Failed transaction: %s" % (name))
+    check_transaction(name, trans.commit(), pairs_list)
 
