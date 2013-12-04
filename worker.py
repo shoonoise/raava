@@ -53,6 +53,7 @@ class WorkerThread(threading.Thread):
     def run(self):
         while not self._stop_flag:
             data = self._ready_queue.get(self._queue_timeout)
+            self._cleanup()
             if data is None:
                 continue
             self._run_task(pickle.loads(data))
@@ -119,11 +120,17 @@ class WorkerThread(threading.Thread):
                     (zoo.join(zoo.RUNNING_PATH, task_id, node), pickle.dumps(value))
                     for (node, value) in pairs_dict.items()
                 ])
-        finally:
-            self._threads_dict[task_id][_TASK_LOCK].release()
-            if state is None:
-                self._threads_dict.pop(task_id)
+        except Exception:
+            _logger.exception("Saver error, current task has been dropped")
+            raise
         _logger.debug("Task %s saved; status: %s", task_id, pairs_dict[zoo.RUNNING_NODE_STATUS])
+
+    def _cleanup(self):
+        for (task_id, task_dict) in tuple(self._threads_dict.items()):
+            if not task_dict[_TASK_THREAD].is_alive():
+                task_dict[_TASK_LOCK].release()
+                self._threads_dict.pop(task_id)
+                _logger.debug("Cleanup: %s", task_id)
 
 
 ##### Private classes #####

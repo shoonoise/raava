@@ -40,7 +40,6 @@ class CollectorThread(threading.Thread):
                 try:
                     created = self._get_running(task_id, zoo.RUNNING_NODE_CREATED)
                     recycled = self._get_running(task_id, zoo.RUNNING_NODE_RECYCLED)
-                    finished = self._get_running(task_id, zoo.RUNNING_NODE_FINISHED)
                 except kazoo.exceptions.NoNodeError:
                     continue
                 if max(created or 0, recycled or 0) + self._delay > time.time():
@@ -50,7 +49,7 @@ class CollectorThread(threading.Thread):
                     continue
 
                 # XXX: Lock object will be damaged after these operations
-                if finished is None:
+                if self._get_running(task_id, zoo.RUNNING_NODE_FINISHED) is None:
                     self._push_back(lock, task_id)
                 else:
                     self._remove(lock, task_id) # TODO: Garbage lifetime
