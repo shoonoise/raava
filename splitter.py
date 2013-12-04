@@ -66,5 +66,5 @@ class SplitterThread(threading.Thread):
                     zoo.READY_CREATED:        None,
                     zoo.READY_RECYCLED:       None,
                 }))
-            _logger.info("Splitted %s --> %s; handler: %s.%s", job_id, task_id, handler.__module__, handler.__name__)
+            _logger.info("... splitted %s --> %s; handler: %s.%s", job_id, task_id, handler.__module__, handler.__name__)
 

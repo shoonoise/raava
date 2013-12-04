@@ -16,10 +16,11 @@ _collectors = 0
 
 ##### Public classes #####
 class CollectorThread(threading.Thread):
-    def __init__(self, client, interval, delay):
+    def __init__(self, client, interval, delay, recycled_priority):
         self._client = client
         self._interval = interval
         self._delay = delay
+        self._recycled_priority = recycled_priority
         self._stop_flag = False
 
         global _collectors
@@ -36,6 +37,7 @@ class CollectorThread(threading.Thread):
     ### Private ###
 
     def run(self):
+        # TODO: Add /control cleanup
         while not self._stop_flag:
             for task_id in self._client.get_children(zoo.RUNNING_PATH):
                 if self._stop_flag:
@@ -78,7 +80,7 @@ class CollectorThread(threading.Thread):
         self._make_remove_running(trans, lock, task_id)
         trans.create("{path}/entries/entry-{priority:03d}-".format(
                 path=zoo.READY_PATH,
-                priority=100,
+                priority=self._recycled_priority,
             ), pickle.dumps(ready_dict), sequence=True)
         zoo.check_transaction("push_back", trans.commit())
         _logger.info("Pushed back: %s", task_id)

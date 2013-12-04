@@ -35,7 +35,7 @@ class WorkerThread(threading.Thread):
         self._client = client
         self._queue_timeout = queue_timeout
         self._ready_queue = self._client.LockingQueue(zoo.READY_PATH)
-        self._stepper_lock = threading.Lock()
+        self._client_lock = threading.Lock()
         self._threads_dict = {}
         self._stop_flag = False
 
@@ -95,14 +95,14 @@ class WorkerThread(threading.Thread):
         assert lock.acquire(False), "Fresh job was captured by another worker"
 
         handler = ( ready_dict[zoo.READY_HANDLER] if state is None else None )
-        task_thread = _TaskThread(root_job_id, parent_task_id, job_id, task_id, handler, state, self._stepper)
+        task_thread = _TaskThread(root_job_id, parent_task_id, job_id, task_id, handler, state, self._controller, self._saver)
         self._threads_dict[task_id] = {
             _TASK_THREAD: task_thread,
             _TASK_LOCK:   lock,
         }
-        task_thread.start()
         message = ( "Spawned the new job" if state is None else "Respawned the old job" )
         _logger.info("%s: %s; task: %s (root: %s)", message, job_id, task_id, root_job_id)
+        task_thread.start()
 
     def _cleanup(self):
         for (task_id, task_dict) in tuple(self._threads_dict.items()):
@@ -113,14 +113,19 @@ class WorkerThread(threading.Thread):
 
     ### Children threads ###
 
-    def _stepper(self, task, state):
-        self._stepper_lock.acquire()
-        try:
-            return self._stepper_unsafe(task, state)
-        finally:
-            self._stepper_lock.release()
+    def _controller(self, task):
+        with self._client_lock:
+            return self._controller_unsafe(task)
 
-    def _stepper_unsafe(self, task, state):
+    def _saver(self, task, state):
+        with self._client_lock:
+            return self._saver_unsafe(task, state)
+
+    def _controller_unsafe(self, task):
+        root_job_id = ( task.get_root_job_id() or task.get_job_id() )
+        return ( self._client.exists(zoo.join(zoo.CONTROL_PATH, root_job_id, zoo.CONTROL_NODE_CANCEL)) is None )
+
+    def _saver_unsafe(self, task, state):
         task_id = task.get_task_id()
         pairs_dict = { zoo.RUNNING_NODE_STATE: state }
         if state is None:
@@ -129,24 +134,24 @@ class WorkerThread(threading.Thread):
         else:
             pairs_dict[zoo.RUNNING_NODE_STATUS] = zoo.TASK_STATUS.READY
         try:
-            zoo.write_transaction("stepper", self._client, zoo.WRITE_TRANSACTION_SET_DATA, [
+            zoo.write_transaction("saver", self._client, zoo.WRITE_TRANSACTION_SET_DATA, [
                     (zoo.join(zoo.RUNNING_PATH, task_id, node), pickle.dumps(value))
                     for (node, value) in pairs_dict.items()
                 ])
         except Exception:
-            _logger.exception("Stepper error, current task has been dropped")
+            _logger.exception("saver error, current task has been dropped")
             raise
         _logger.debug("Saved; status: %s", pairs_dict[zoo.RUNNING_NODE_STATUS])
-        return True
 
 
 ##### Private classes #####
 class _TaskThread(threading.Thread):
-    def __init__(self, root_job_id, parent_task_id, job_id, task_id, handler, state, stepper):
+    def __init__(self, root_job_id, parent_task_id, job_id, task_id, handler, state, controller, saver):
         self._root_job_id = root_job_id # TODO: control
         self._parent_task_id = parent_task_id # TODO: subtasks
         self._task_id = task_id
-        self._stepper = stepper
+        self._controller = controller
+        self._saver = saver
         self._task = _Task(root_job_id, parent_task_id, job_id, task_id, handler, state)
         self._stop_flag = False
         thread_name = "TaskThread::" + task_id#.split("-")[0]
@@ -167,11 +172,21 @@ class _TaskThread(threading.Thread):
     def run(self):
         self._task.init_cont()
         while not self._stop_flag and self._task.is_pending():
-            (_, _, state) = self._task.step()
-            if not self._stepper(self._task, state):
-                break
+            if not self._controller(self._task):
+                self._saver(self._task, None)
+                _logger.info("Task is cancelled")
+                return
+
+            (_, err, state) = self._task.step()
+            if not err is None:
+                _logger.error("Unhandled step() error: %s", err)
+                self._saver(self._task, None)
+                return
+
+            self._saver(self._task, state)
+
         if not self._task.is_pending():
-            self._stepper(self._task, None)
+            self._saver(self._task, None)
             _logger.info("Task is finished")
         else:
             _logger.info("Task is stopped")

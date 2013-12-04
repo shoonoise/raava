@@ -1,10 +1,9 @@
-import json
 import uuid
 import pickle
 import time
 import logging
 
-import kazoo.recipe.queue
+import kazoo.exceptions
 
 from . import const
 from . import rules
@@ -15,15 +14,21 @@ from . import zoo
 _logger = logging.getLogger(const.LOGGER_NAME)
 
 
+##### Exceptions #####
+class NoJobError(Exception):
+    pass
+
+class NotRootError(Exception):
+    pass
+
+
 ##### Public classes #####
 class EventsApi:
     def __init__(self, client):
         self._client = client
-        self._input_queue = kazoo.recipe.queue.LockingQueue(self._client, zoo.INPUT_PATH)
 
-    def add_event(self, data, root_job_id, parent_task_id):
-        event_dict = json.loads(data)
-        event_root = rules.EventRoot(event_dict, extra={ rules.EXTRA_HANDLER : rules.HANDLER.ON_EVENT })
+    def add_event(self, event_root, root_job_id = None, parent_task_id = None):
+        assert isinstance(event_root, rules.EventRoot), "Invalid event type"
         job_id = str(uuid.uuid4())
         input_dict = {
             zoo.INPUT_ROOT_JOB_ID:    root_job_id,
@@ -32,5 +37,26 @@ class EventsApi:
             zoo.INPUT_EVENT:          event_root,
             zoo.INPUT_ADDED:          time.time(),
         }
-        self._input_queue.put(pickle.dumps(input_dict))
+        trans = self._client.transaction()
+        trans.create("{path}/entries/entry-{priority:03d}-".format(
+                path=zoo.INPUT_PATH,
+                priority=100,
+            ), pickle.dumps(input_dict), sequence=True)
+        trans.create(zoo.join(zoo.CONTROL_PATH, job_id))
+        trans.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_ROOT_JOB_ID), pickle.dumps(root_job_id))
+        #trans.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_PARENT_TASK_ID), pickle.dumps(parent_task_id))
+        zoo.check_transaction("add_event", trans.commit())
         _logger.info("Registered job %s", job_id)
+        return job_id
+
+    def cancel_event(self, job_id):
+        try:
+            root_job_id = pickle.loads(self._client.get(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_ROOT_JOB_ID))[0])
+            if not root_job_id is None:
+                raise NotRootError
+            self._client.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_CANCEL))
+        except kazoo.exceptions.NoNodeError:
+            raise NoJobError
+        except kazoo.exceptions.NodeExistsError:
+            pass
+

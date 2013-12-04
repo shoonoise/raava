@@ -10,6 +10,7 @@ from . import const
 INPUT_PATH   = "/input"
 READY_PATH   = "/ready"
 RUNNING_PATH = "/running"
+CONTROL_PATH = "/control"
 
 INPUT_ROOT_JOB_ID    = "root_job_id"
 INPUT_PARENT_TASK_ID = "parent_task_id"
@@ -41,6 +42,10 @@ RUNNING_NODE_RECYCLED = READY_RECYCLED
 RUNNING_NODE_FINISHED = "finished"
 RUNNING_NODE_LOCK     = "lock"
 
+CONTROL_NODE_CANCEL = "cancel"
+CONTROL_NODE_ROOT_JOB_ID = INPUT_ROOT_JOB_ID
+#CONTROL_NODE_PARENT_TASK_ID = INPUT_PARENT_TASK_ID
+
 class TASK_STATUS:
     NEW      = "new"
     READY    = "ready"
@@ -68,7 +73,7 @@ def connect(hosts_list):
     return client
 
 def init(client):
-    for path in (RUNNING_PATH, INPUT_PATH):
+    for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_PATH):
         try:
             client.create(path, makepath=True)
             _logger.info("Created zoo path: %s", path)
