@@ -34,7 +34,7 @@ class WorkerThread(threading.Thread):
         self._client = client
         self._queue_timeout = queue_timeout
         self._ready_queue = self._client.LockingQueue(zoo.READY_PATH)
-        self._saver_lock = threading.Lock()
+        self._stepper_lock = threading.Lock()
         self._threads_dict = {}
         self._stop_flag = False
         threading.Thread.__init__(self)
@@ -91,7 +91,7 @@ class WorkerThread(threading.Thread):
         assert lock.acquire(False), "Fresh job was captured by another worker"
 
         handler = ( ready_dict[zoo.READY_HANDLER] if state is None else None )
-        task_thread = _TaskThread(root_job_id, parent_task_id, job_id, task_id, handler, state, self._saver)
+        task_thread = _TaskThread(root_job_id, parent_task_id, job_id, task_id, handler, state, self._stepper)
         self._threads_dict[task_id] = {
             _TASK_THREAD: task_thread,
             _TASK_LOCK:   lock,
@@ -100,31 +100,6 @@ class WorkerThread(threading.Thread):
         message = ( "Spawned the new job" if state is None else "Respawned the old job" )
         _logger.info("%s: %s; task: %s (root: %s)", message, job_id, task_id, root_job_id)
 
-
-    def _saver(self, task_id, state):
-        self._saver_lock.acquire()
-        try:
-            self._saver_unsafe(task_id, state)
-        finally:
-            self._saver_lock.release()
-
-    def _saver_unsafe(self, task_id, state):
-        pairs_dict = { zoo.RUNNING_NODE_STATE: state }
-        if state is None:
-            pairs_dict[zoo.RUNNING_NODE_FINISHED] = time.time()
-            pairs_dict[zoo.RUNNING_NODE_STATUS] = zoo.TASK_STATUS.FINISHED
-        else:
-            pairs_dict[zoo.RUNNING_NODE_STATUS] = zoo.TASK_STATUS.READY
-        try:
-            zoo.write_transaction("saver", self._client, zoo.WRITE_TRANSACTION_SET_DATA, [
-                    (zoo.join(zoo.RUNNING_PATH, task_id, node), pickle.dumps(value))
-                    for (node, value) in pairs_dict.items()
-                ])
-        except Exception:
-            _logger.exception("Saver error, current task has been dropped")
-            raise
-        _logger.debug("Task %s saved; status: %s", task_id, pairs_dict[zoo.RUNNING_NODE_STATUS])
-
     def _cleanup(self):
         for (task_id, task_dict) in tuple(self._threads_dict.items()):
             if not task_dict[_TASK_THREAD].is_alive():
@@ -132,17 +107,46 @@ class WorkerThread(threading.Thread):
                 self._threads_dict.pop(task_id)
                 _logger.debug("Cleanup: %s", task_id)
 
+    ### Children threads ###
+
+    def _stepper(self, task, state):
+        self._stepper_lock.acquire()
+        try:
+            return self._stepper_unsafe(task, state)
+        finally:
+            self._stepper_lock.release()
+
+    def _stepper_unsafe(self, task, state):
+        task_id = task.get_task_id()
+        pairs_dict = { zoo.RUNNING_NODE_STATE: state }
+        if state is None:
+            pairs_dict[zoo.RUNNING_NODE_FINISHED] = time.time()
+            pairs_dict[zoo.RUNNING_NODE_STATUS] = zoo.TASK_STATUS.FINISHED
+        else:
+            pairs_dict[zoo.RUNNING_NODE_STATUS] = zoo.TASK_STATUS.READY
+        try:
+            zoo.write_transaction("stepper", self._client, zoo.WRITE_TRANSACTION_SET_DATA, [
+                    (zoo.join(zoo.RUNNING_PATH, task_id, node), pickle.dumps(value))
+                    for (node, value) in pairs_dict.items()
+                ])
+        except Exception:
+            _logger.exception("Stepper error, current task has been dropped")
+            raise
+        _logger.debug("Saved; status: %s", pairs_dict[zoo.RUNNING_NODE_STATUS])
+        return True
+
 
 ##### Private classes #####
 class _TaskThread(threading.Thread):
-    def __init__(self, root_job_id, parent_task_id, job_id, task_id, handler, state, saver):
+    def __init__(self, root_job_id, parent_task_id, job_id, task_id, handler, state, stepper):
         self._root_job_id = root_job_id # TODO: control
         self._parent_task_id = parent_task_id # TODO: subtasks
         self._task_id = task_id
-        self._saver = saver
+        self._stepper = stepper
         self._task = _Task(root_job_id, parent_task_id, job_id, task_id, handler, state)
         self._stop_flag = False
-        threading.Thread.__init__(self)
+        thread_name = "TaskThread::" + task_id#.split("-")[0]
+        threading.Thread.__init__(self, name=thread_name)
 
 
     ### Public ###
@@ -157,16 +161,16 @@ class _TaskThread(threading.Thread):
     ### Private ###
 
     def run(self):
-        _logger.info("Run the task %s ...", self._task_id)
         self._task.init_cont()
         while not self._stop_flag and self._task.is_pending():
             (_, _, state) = self._task.step()
-            self._saver(self._task_id, state)
+            if not self._stepper(self._task, state):
+                break
         if not self._task.is_pending():
-            self._saver(self._task_id, None)
-            _logger.info("Task %s is finished", self._task_id)
+            self._stepper(self._task, None)
+            _logger.info("Task is finished")
         else:
-            _logger.info("Task %s is stopped", self._task_id)
+            _logger.info("Task is stopped")
 
 class _Task:
     def __init__(self, root_job_id, parent_task_id, job_id, task_id, handler, state):
@@ -202,16 +206,16 @@ class _Task:
     def init_cont(self):
         assert self._cont is None, "Continulet is already constructed"
         if not self._handler is None:
-            _logger.debug("Creating a new continulet for task: %s...", self._task_id)
+            _logger.debug("Creating a new continulet...")
             handler = pickle.loads(self._handler)
             cont = _continuation.continulet(lambda _: handler())
         elif not self._state is None:
-            _logger.debug("Restoring the old state of task: %s ...", self._task_id)
+            _logger.debug("Restoring the old state...")
             cont = pickle.loads(self._state)
-            assert isinstance(cont, _continuation.continulet), "The state of %s is a garbage!" % (self._task_id)
+            assert isinstance(cont, _continuation.continulet), "The unpickled state is a garbage!"
         else:
             raise RuntimeError("Required handler OR state")
-        _logger.debug("... continulet is OK: %s", self._task_id)
+        _logger.debug("... continulet is ready")
         self._cont = cont
 
     def is_pending(self):
@@ -221,12 +225,12 @@ class _Task:
     def step(self):
         assert not self._cont is None, "Run init_cont() first"
         assert self._cont.is_pending(), "Attempt to step() on a finished task"
-        _logger.debug("Activating task %s ...", self._task_id)
+        _logger.debug("Activating...")
         try:
             retval = self._cont.switch()
-            _logger.debug("Task %s returned --> %s", self._task_id, str(retval))
+            _logger.debug("... return --> %s", str(retval))
             return (retval, None, pickle.dumps(self._cont))
         except Exception as err:
-            _logger.exception("Exception in cont %s", self._task_id)
+            _logger.exception("Step error")
             return (None, err, None)
 
