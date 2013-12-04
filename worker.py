@@ -15,6 +15,7 @@ _TASK_LOCK   = "lock"
 
 ##### Private objects #####
 _logger = logging.getLogger(const.LOGGER_NAME)
+_workers = 0
 
 
 ##### Public methods #####
@@ -37,7 +38,10 @@ class WorkerThread(threading.Thread):
         self._stepper_lock = threading.Lock()
         self._threads_dict = {}
         self._stop_flag = False
-        threading.Thread.__init__(self)
+
+        global _workers
+        _workers += 1
+        threading.Thread.__init__(self, name="Worker::{workers:03d}".format(workers=_workers))
 
 
     ### Public ###

@@ -12,6 +12,7 @@ from . import zoo
 
 ##### Private objects #####
 _logger = logging.getLogger(const.LOGGER_NAME)
+_splitters = 0
 
 
 ##### Public classes #####
@@ -23,7 +24,11 @@ class SplitterThread(threading.Thread):
         self._input_queue = self._client.LockingQueue(zoo.INPUT_PATH)
         self._ready_queue = self._client.LockingQueue(zoo.READY_PATH)
         self._stop_flag = False
-        threading.Thread.__init__(self)
+
+        global _splitters
+        _splitters += 1
+        threading.Thread.__init__(self, name="Splitter::{splitters:03d}".format(splitters=_splitters))
+
 
 
     ### Public ###

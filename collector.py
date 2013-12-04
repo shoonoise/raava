@@ -11,6 +11,7 @@ from . import zoo
 
 ##### Private objects #####
 _logger = logging.getLogger(const.LOGGER_NAME)
+_collectors = 0
 
 
 ##### Public classes #####
@@ -20,7 +21,10 @@ class CollectorThread(threading.Thread):
         self._interval = interval
         self._delay = delay
         self._stop_flag = False
-        threading.Thread.__init__(self)
+
+        global _collectors
+        _collectors += 1
+        threading.Thread.__init__(self, name="Collector::{collectors:03d}".format(collectors=_collectors))
 
 
     ### Public ###
