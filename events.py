@@ -38,13 +38,10 @@ class EventsApi:
             zoo.INPUT_ADDED:          time.time(),
         }
         trans = self._client.transaction()
-        trans.create("{path}/entries/entry-{priority:03d}-".format(
-                path=zoo.INPUT_PATH,
-                priority=100,
-            ), pickle.dumps(input_dict), sequence=True)
+        zoo.lq_put_transaction(trans, zoo.INPUT_PATH, pickle.dumps(input_dict))
         trans.create(zoo.join(zoo.CONTROL_PATH, job_id))
         trans.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_ROOT_JOB_ID), pickle.dumps(root_job_id))
-        #trans.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_PARENT_TASK_ID), pickle.dumps(parent_task_id))
+        # XXX: NO zoo.CONTROL_NODE_TASKS!
         zoo.check_transaction("add_event", trans.commit())
         _logger.info("Registered job %s", job_id)
         return job_id

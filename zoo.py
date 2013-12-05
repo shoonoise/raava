@@ -45,6 +45,7 @@ RUNNING_NODE_LOCK     = "lock"
 CONTROL_NODE_CANCEL = "cancel"
 CONTROL_NODE_ROOT_JOB_ID = INPUT_ROOT_JOB_ID
 CONTROL_NODE_TASKS  = "tasks"
+CONTROL_NODE_LOCK   = "lock"
 #CONTROL_NODE_PARENT_TASK_ID = INPUT_PARENT_TASK_ID
 
 
@@ -93,4 +94,9 @@ def check_transaction(name, results_list, pairs_list = None):
             _logger.error("Failed transaction \"%s\": %s", name, results_list)
         raise TransactionError("Failed transaction: %s" % (name))
 
+def lq_put_transaction(trans, queue_path, data, priority = 100):
+    trans.create("{path}/entries/entry-{priority:03d}-".format(
+            path=queue_path,
+            priority=priority,
+        ), data, sequence=True)
 

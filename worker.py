@@ -132,30 +132,29 @@ class WorkerThread(threading.Thread):
 
     def _saver_unsafe(self, task, state):
         task_id = task.get_task_id()
-        pairs_dict = { zoo.RUNNING_NODE_STATE: state }
-        if state is None:
-            pairs_dict[zoo.RUNNING_NODE_FINISHED] = time.time()
-            pairs_dict[zoo.RUNNING_NODE_STATUS] = TASK_STATUS.FINISHED
-        else:
-            pairs_dict[zoo.RUNNING_NODE_STATUS] = TASK_STATUS.READY
         trans = self._client.transaction()
-        for (node, value) in pairs_dict.items():
-            trans.set_data(zoo.join(zoo.RUNNING_PATH, task_id, node), pickle.dumps(value))
+        if state is None:
+            trans.set_data(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_NODE_FINISHED), pickle.dumps(time.time()))
+            trans.delete(zoo.join(zoo.CONTROL_PATH, task.get_job_id(), zoo.CONTROL_NODE_TASKS, task_id))
+            status = TASK_STATUS.FINISHED
+        else:
+            status = TASK_STATUS.READY
+        trans.set_data(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_NODE_STATUS), pickle.dumps(status))
         try:
             zoo.check_transaction("saver", trans.commit())
         except zoo.TransactionError:
             _logger.exception("saver error, current task has been dropped")
             raise
-        _logger.debug("Saved; status: %s", pairs_dict[zoo.RUNNING_NODE_STATUS])
+        _logger.debug("Saved; status: %s", status)
 
 
 ##### Private classes #####
 class _TaskThread(threading.Thread):
     def __init__(self, root_job_id, parent_task_id, job_id, task_id, handler, state, controller, saver):
-        self._root_job_id = root_job_id # TODO: control
-        self._parent_task_id = parent_task_id # TODO: subtasks
+        self._root_job_id = root_job_id
+        self._parent_task_id = parent_task_id
         self._task_id = task_id
-        self._controller = controller
+        self._controller = controller # TODO: lambda
         self._saver = saver
         self._task = _Task(root_job_id, parent_task_id, job_id, task_id, handler, state)
         self._stop_flag = False
