@@ -44,15 +44,8 @@ RUNNING_NODE_LOCK     = "lock"
 
 CONTROL_NODE_CANCEL = "cancel"
 CONTROL_NODE_ROOT_JOB_ID = INPUT_ROOT_JOB_ID
+CONTROL_NODE_TASKS  = "tasks"
 #CONTROL_NODE_PARENT_TASK_ID = INPUT_PARENT_TASK_ID
-
-class TASK_STATUS:
-    NEW      = "new"
-    READY    = "ready"
-    FINISHED = "finished"
-
-WRITE_TRANSACTION_CREATE   = "create"
-WRITE_TRANSACTION_SET_DATA = "set_data"
 
 
 ##### Private objects #####
@@ -100,9 +93,4 @@ def check_transaction(name, results_list, pairs_list = None):
             _logger.error("Failed transaction \"%s\": %s", name, results_list)
         raise TransactionError("Failed transaction: %s" % (name))
 
-def write_transaction(name, client, method_name, pairs_list):
-    trans = client.transaction()
-    for (path, value) in pairs_list:
-        getattr(trans, method_name)(path, value)
-    check_transaction(name, trans.commit(), pairs_list)
 

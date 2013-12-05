@@ -8,6 +8,13 @@ from . import const
 from . import zoo
 
 
+##### Public constants #####
+class TASK_STATUS:
+    NEW      = "new"
+    READY    = "ready"
+    FINISHED = "finished"
+
+
 ##### Private constants #####
 _TASK_THREAD = "thread"
 _TASK_LOCK   = "lock"
@@ -72,25 +79,23 @@ class WorkerThread(threading.Thread):
         state          = ready_dict[zoo.READY_STATE]
         assert not task_id in self._threads_dict, "Duplicating tasks"
 
-        pairs_list = [
-            (zoo.join(zoo.RUNNING_PATH, task_id), b""),
-        ] + [
-            (zoo.join(zoo.RUNNING_PATH, task_id, node), pickle.dumps(value))
-            for (node, value) in (
-                    (zoo.RUNNING_NODE_ROOT_JOB_ID,    root_job_id),
-                    (zoo.RUNNING_NODE_PARENT_TASK_ID, parent_task_id),
-                    (zoo.RUNNING_NODE_JOB_ID,         job_id),
-                    (zoo.RUNNING_NODE_HANDLER,        ready_dict[zoo.READY_HANDLER]),
-                    (zoo.RUNNING_NODE_STATE,          state),
-                    (zoo.RUNNING_NODE_STATUS,         ( zoo.TASK_STATUS.NEW if state is None else zoo.TASK_STATUS.READY )),
-                    (zoo.RUNNING_NODE_ADDED,          ready_dict[zoo.READY_ADDED]),
-                    (zoo.RUNNING_NODE_SPLITTED,       ready_dict[zoo.READY_SPLITTED]),
-                    (zoo.RUNNING_NODE_CREATED,        ( ready_dict[zoo.READY_CREATED] or time.time() )),
-                    (zoo.RUNNING_NODE_RECYCLED,       time.time()), # FIXME: ready_dict[zoo.READY_RECYCLED]),
-                    (zoo.RUNNING_NODE_FINISHED,       None),
-                )
-        ]
-        zoo.write_transaction("init_task", self._client, zoo.WRITE_TRANSACTION_CREATE, pairs_list)
+        trans = self._client.transaction()
+        trans.create(zoo.join(zoo.RUNNING_PATH, task_id))
+        for (node, value) in (
+                (zoo.RUNNING_NODE_ROOT_JOB_ID,    root_job_id),
+                (zoo.RUNNING_NODE_PARENT_TASK_ID, parent_task_id),
+                (zoo.RUNNING_NODE_JOB_ID,         job_id),
+                (zoo.RUNNING_NODE_HANDLER,        ready_dict[zoo.READY_HANDLER]),
+                (zoo.RUNNING_NODE_STATE,          state),
+                (zoo.RUNNING_NODE_STATUS,         ( TASK_STATUS.NEW if state is None else TASK_STATUS.READY )),
+                (zoo.RUNNING_NODE_ADDED,          ready_dict[zoo.READY_ADDED]),
+                (zoo.RUNNING_NODE_SPLITTED,       ready_dict[zoo.READY_SPLITTED]),
+                (zoo.RUNNING_NODE_CREATED,        ( ready_dict[zoo.READY_CREATED] or time.time() )),
+                (zoo.RUNNING_NODE_RECYCLED,       time.time()), # FIXME: ready_dict[zoo.READY_RECYCLED]),
+                (zoo.RUNNING_NODE_FINISHED,       None),
+            ):
+            trans.create(zoo.join(zoo.RUNNING_PATH, task_id, node), pickle.dumps(value))
+        zoo.check_transaction("init_task", trans.commit())
         lock = self._client.Lock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_NODE_LOCK))
         assert lock.acquire(False), "Fresh job was captured by another worker"
 
@@ -130,15 +135,15 @@ class WorkerThread(threading.Thread):
         pairs_dict = { zoo.RUNNING_NODE_STATE: state }
         if state is None:
             pairs_dict[zoo.RUNNING_NODE_FINISHED] = time.time()
-            pairs_dict[zoo.RUNNING_NODE_STATUS] = zoo.TASK_STATUS.FINISHED
+            pairs_dict[zoo.RUNNING_NODE_STATUS] = TASK_STATUS.FINISHED
         else:
-            pairs_dict[zoo.RUNNING_NODE_STATUS] = zoo.TASK_STATUS.READY
+            pairs_dict[zoo.RUNNING_NODE_STATUS] = TASK_STATUS.READY
+        trans = self._client.transaction()
+        for (node, value) in pairs_dict.items():
+            trans.set_data(zoo.join(zoo.RUNNING_PATH, task_id, node), pickle.dumps(value))
         try:
-            zoo.write_transaction("saver", self._client, zoo.WRITE_TRANSACTION_SET_DATA, [
-                    (zoo.join(zoo.RUNNING_PATH, task_id, node), pickle.dumps(value))
-                    for (node, value) in pairs_dict.items()
-                ])
-        except Exception:
+            zoo.check_transaction("saver", trans.commit())
+        except zoo.TransactionError:
             _logger.exception("saver error, current task has been dropped")
             raise
         _logger.debug("Saved; status: %s", pairs_dict[zoo.RUNNING_NODE_STATUS])
@@ -170,7 +175,7 @@ class _TaskThread(threading.Thread):
     ### Private ###
 
     def run(self):
-        self._task.init_cont()
+        self._task.init_cont() # TODO: Error
         while not self._stop_flag and self._task.is_pending():
             if not self._controller(self._task):
                 self._saver(self._task, None)
