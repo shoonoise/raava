@@ -9,26 +9,7 @@ _logger = logging.getLogger(const.LOGGER_NAME)
 
 
 ##### Public constants #####
-EVENT_LEVEL = "level"
-EXTRA_URGENCY = "urgency"
 EXTRA_HANDLER = "handler"
-
-class LEVEL:
-    CRIT   = 0
-    WARN   = 1
-    OK     = 2
-    CUSTOM = 3
-
-class URGENCY:
-    HIGH   = 0
-    MEDIUM = 1
-    LOW    = 2
-    CUSTOM = 3
-
-class HANDLER:
-    ON_EVENT  = "on_event"
-    ON_NOTIFY = "on_notify"
-    ON_SEND   = "on_send"
 
 
 ##### Private constants #####

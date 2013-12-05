@@ -154,7 +154,7 @@ class _TaskThread(threading.Thread):
         self._root_job_id = root_job_id
         self._parent_task_id = parent_task_id
         self._task_id = task_id
-        self._controller = controller # TODO: lambda
+        self._controller = controller
         self._saver = saver
         self._task = _Task(root_job_id, parent_task_id, job_id, task_id, handler, state)
         self._stop_flag = False
@@ -174,7 +174,12 @@ class _TaskThread(threading.Thread):
     ### Private ###
 
     def run(self):
-        self._task.init_cont() # TODO: Error
+        try:
+            self._task.init_cont()
+        except Exception:
+            _logger.exception("Cont-init error")
+            self._saver(self._task, None)
+
         while not self._stop_flag and self._task.is_pending():
             if not self._controller(self._task):
                 self._saver(self._task, None)
