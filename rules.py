@@ -67,22 +67,26 @@ def get_handlers(event_root, handlers_dict):
         extra_filters_dict = getattr(handler, _FILTER.EXTRA, {})
         if len(event_filters_dict) + len(extra_filters_dict) == 0:
             selected_set.add(handler)
+            _logger.debug("Applied: %s --> %s.%s", job_id, handler.__module__, handler.__name__)
         else:
-            if ( _check_match(job_id, event_filters_dict, event_root) and
-                _check_match(job_id, extra_filters_dict, event_root.get_extra()) ):
+            if ( _check_match(job_id, handler, event_filters_dict, event_root) and
+                _check_match(job_id, handler, extra_filters_dict, event_root.get_extra()) ):
                 selected_set.add(handler)
+                _logger.debug("Applied: %s --> %s.%s", job_id, handler.__module__, handler.__name__)
     return selected_set
 
 
 ##### Private methods #####
-def _check_match(job_id, filters_dict, event_dict):
+def _check_match(job_id, handler, filters_dict, event_dict):
     for (key, comparator) in filters_dict.items():
         try:
             if not (key in event_dict and _compare(comparator, event_dict[key])):
-                _logger.debug("Event %s/%s: not matched with %s(%s)", job_id, key, comparator.__class__.__name__, repr(comparator.get_operand()))
+                _logger.debug("Event %s/%s: not matched with %s(%s); handler: %s.%s",
+                    job_id, key, comparator.__class__.__name__, repr(comparator.get_operand()), handler.__module__, handler.__name__)
                 return False
         except ComparsionError as err:
-            _logger.debug("Matching error on %s/%s: %s: %s", job_id, key, comparator.__class__.__name__, str(err))
+            _logger.debug("Matching error on %s/%s: %s: %s; handler: %s.%s",
+                job_id, key, comparator.__class__.__name__, str(err), handler.__module__, handler.__name__)
             return False
     return True
 
