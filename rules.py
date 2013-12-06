@@ -131,6 +131,14 @@ class InListComparator(AbstractComparator):
     def compare(self, value):
         return ( value in self._operand )
 
+class NotInListComparator(AbstractComparator):
+    def __init__(self, *variants_tuple):
+        AbstractComparator.__init__(self, variants_tuple)
+
+    def compare(self, value):
+        return ( not value in self._operand )
+
+
 class RegexpComparator(AbstractComparator):
     def __init__(self, regexp):
         AbstractComparator.__init__(self, re.compile(regexp))
