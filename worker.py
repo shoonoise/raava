@@ -54,9 +54,18 @@ class WorkerThread(threading.Thread):
     ### Public ###
 
     def stop(self):
-        for task_id in tuple(self._threads_dict.keys()):
-            self._threads_dict.pop(task_id)[_TASK_THREAD].stop()
         self._stop_flag = True
+        for task_dict in self._threads_dict.values():
+            task_dict[_TASK_THREAD].stop()
+
+    def alive_children(self):
+        count = len([
+                None
+                for task_dict in self._threads_dict.values()
+                if task_dict[_TASK_THREAD].is_alive()
+        ])
+        self._cleanup()
+        return count
 
 
     ### Private ###
