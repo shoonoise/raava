@@ -79,6 +79,7 @@ def _check_match(job_id, filters_dict, event_dict):
     for (key, comparator) in filters_dict.items():
         try:
             if not (key in event_dict and _compare(comparator, event_dict[key])):
+                _logger.debug("Event %s/%s: not matched with %s(%s)", job_id, key, comparator.__class__.__name__, repr(comparator.get_operand()))
                 return False
         except ComparsionError as err:
             _logger.debug("Matching error on %s/%s: %s: %s", job_id, key, comparator.__class__.__name__, str(err))
