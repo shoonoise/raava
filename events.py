@@ -1,3 +1,4 @@
+import copy
 import uuid
 import pickle
 import time
@@ -27,9 +28,13 @@ class EventsApi:
     def __init__(self, client):
         self._client = client
 
-    def add_event(self, event_root, root_job_id = None, parent_task_id = None):
+    def add_event(self, event_root, handler_type, root_job_id = None, parent_task_id = None):
         assert isinstance(event_root, rules.EventRoot), "Invalid event type"
         job_id = str(uuid.uuid4())
+        event_root = copy.copy(event_root)
+        event_root.get_extra()[rules.EXTRA_HANDLER] = handler_type
+        event_root.get_extra()[rules.EXTRA_JOB_ID] = job_id
+
         input_dict = {
             zoo.INPUT_ROOT_JOB_ID:    root_job_id,
             zoo.INPUT_PARENT_TASK_ID: parent_task_id,
@@ -43,6 +48,7 @@ class EventsApi:
         trans.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_ROOT_JOB_ID), pickle.dumps(root_job_id))
         # XXX: NO zoo.CONTROL_NODE_TASKS!
         zoo.check_transaction("add_event", trans.commit())
+
         _logger.info("Registered job %s", job_id)
         return job_id
 
