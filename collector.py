@@ -93,7 +93,7 @@ class CollectorThread(threading.Thread):
                 trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_LOCK))
                 trans.delete(zoo.join(zoo.CONTROL_PATH, job_id))
                 zoo.check_transaction("remove_control", trans.commit())
-                _logger.info("Removed control: %s", job_id)
+                _logger.info("Control removed: %s", job_id)
             except zoo.TransactionError:
                 _logger.error("Cannot remove control", exc_info=True)
 
