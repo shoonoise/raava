@@ -52,28 +52,35 @@ class SplitterThread(threading.Thread):
         _logger.info("Split job %s to %d tasks", job_id, len(handlers_set))
 
         with self._client.Lock(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_LOCK)):
+            trans = self._client.transaction()
+            tasks_path = zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_TASKS)
+            if self._client.exists(tasks_path) is None:
+                trans.create(tasks_path)
+
             for handler in handlers_set:
                 task_id = str(uuid.uuid4())
                 event_root = copy.copy(input_dict[zoo.INPUT_EVENT])
 
-                trans = self._client.transaction()
                 zoo.lq_put_transaction(trans, zoo.READY_PATH, pickle.dumps({
                         zoo.READY_ROOT_JOB_ID:    input_dict[zoo.INPUT_ROOT_JOB_ID],
                         zoo.READY_PARENT_TASK_ID: input_dict[zoo.INPUT_PARENT_TASK_ID],
                         zoo.READY_JOB_ID:         job_id,
                         zoo.READY_TASK_ID:        task_id,
-                        zoo.READY_HANDLER:        pickle.dumps(lambda: handler(event_root)),
+                        zoo.READY_HANDLER:        pickle.dumps(self._make_handler(handler, event_root)),
                         zoo.READY_STATE:          None,
                         zoo.READY_ADDED:          input_dict[zoo.INPUT_ADDED],
                         zoo.READY_SPLITTED:       time.time(),
                         zoo.READY_CREATED:        None,
                         zoo.READY_RECYCLED:       None,
                     }))
-                tasks_path = zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_TASKS)
-                if self._client.exists(tasks_path) is None:
-                    trans.create(tasks_path)
                 trans.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_TASKS, task_id))
 
-                zoo.check_transaction("split_input", trans.commit())
+            zoo.check_transaction("split_input", trans.commit())
+            for handler in handlers_set:
                 _logger.info("... splitted %s --> %s; handler: %s.%s", job_id, task_id, handler.__module__, handler.__name__)
+
+    def _make_handler(self, handler, event_root):
+        def new_handler():
+            return handler(event_root)
+        return new_handler
 
