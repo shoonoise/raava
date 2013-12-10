@@ -36,8 +36,6 @@ class EventsApi:
         event_root.get_extra()[rules.EXTRA_JOB_ID] = job_id
 
         input_dict = {
-            zoo.INPUT_ROOT_JOB_ID:    root_job_id,
-            zoo.INPUT_PARENT_TASK_ID: parent_task_id,
             zoo.INPUT_JOB_ID:         job_id,
             zoo.INPUT_EVENT:          event_root,
             zoo.INPUT_ADDED:          time.time(),
@@ -45,8 +43,8 @@ class EventsApi:
         trans = self._client.transaction()
         zoo.lq_put_transaction(trans, zoo.INPUT_PATH, pickle.dumps(input_dict))
         trans.create(zoo.join(zoo.CONTROL_PATH, job_id))
-        trans.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_ROOT_JOB_ID), pickle.dumps(root_job_id))
-        # XXX: NO zoo.CONTROL_NODE_TASKS!
+        zoo.pcreate(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_ROOT_JOB_ID), root_job_id)
+        zoo.pcreate(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENT_TASK_ID), parent_task_id)
         zoo.check_transaction("add_event", trans.commit())
 
         _logger.info("Registered job %s", job_id)
@@ -54,10 +52,11 @@ class EventsApi:
 
     def cancel_event(self, job_id):
         try:
-            root_job_id = pickle.loads(self._client.get(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_ROOT_JOB_ID))[0])
+            root_job_id = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_ROOT_JOB_ID))
             if not root_job_id is None:
                 raise NotRootError
-            self._client.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_NODE_CANCEL))
+            with self._client.Lock(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK)): # FIXME
+                self._client.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_CANCEL))
         except kazoo.exceptions.NoNodeError:
             raise NoJobError
         except kazoo.exceptions.NodeExistsError:

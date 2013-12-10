@@ -1,3 +1,4 @@
+import pickle
 import logging
 
 import kazoo.client
@@ -8,9 +9,12 @@ from . import const
 
 ##### Public constants #####
 INPUT_PATH   = "/input"
+CONTROL_PATH = "/control"
 READY_PATH   = "/ready"
 RUNNING_PATH = "/running"
-CONTROL_PATH = "/control"
+
+INPUT_ENTRIES_PATH = INPUT_PATH + "/entries"
+READY_ENTRIES_PATH = READY_PATH + "/entries"
 
 INPUT_ROOT_JOB_ID    = "root_job_id"
 INPUT_PARENT_TASK_ID = "parent_task_id"
@@ -18,35 +22,32 @@ INPUT_JOB_ID = "job_id"
 INPUT_EVENT  = "event"
 INPUT_ADDED  = "added"
 
-READY_ROOT_JOB_ID    = INPUT_ROOT_JOB_ID
-READY_PARENT_TASK_ID = INPUT_PARENT_TASK_ID
+CONTROL_ROOT_JOB_ID    = INPUT_ROOT_JOB_ID
+CONTROL_PARENT_TASK_ID = INPUT_PARENT_TASK_ID
+CONTROL_TASKS          = "tasks"
+CONTROL_TASK_ADDED     = INPUT_ADDED
+CONTROL_TASK_SPLITTED  = "splitted"
+CONTROL_TASK_CREATED   = "created"
+CONTROL_TASK_RECYCLED  = "recycled"
+CONTROL_TASK_FINISHED  = "finished"
+CONTROL_TASK_STATUS    = "status"
+CONTROL_CANCEL         = "cancel"
+CONTROL_LOCK           = "lock"
+
 READY_JOB_ID   = INPUT_JOB_ID
 READY_TASK_ID  = "task_id"
 READY_HANDLER  = "handler"
 READY_STATE    = "state"
-READY_ADDED    = INPUT_ADDED
-READY_SPLITTED = "splitted"
-READY_CREATED  = "created"
-READY_RECYCLED = "recycled"
 
-RUNNING_NODE_ROOT_JOB_ID    = READY_ROOT_JOB_ID
-RUNNING_NODE_PARENT_TASK_ID = READY_PARENT_TASK_ID
-RUNNING_NODE_JOB_ID   = READY_JOB_ID
-RUNNING_NODE_HANDLER  = READY_HANDLER
-RUNNING_NODE_STATE    = READY_STATE
-RUNNING_NODE_STATUS   = "status"
-RUNNING_NODE_ADDED    = READY_ADDED
-RUNNING_NODE_SPLITTED = READY_SPLITTED
-RUNNING_NODE_CREATED  = READY_CREATED
-RUNNING_NODE_RECYCLED = READY_RECYCLED
-RUNNING_NODE_FINISHED = "finished"
-RUNNING_NODE_LOCK     = "lock"
+RUNNING_JOB_ID  = READY_JOB_ID
+RUNNING_HANDLER = READY_HANDLER
+RUNNING_STATE   = READY_STATE
+RUNNING_LOCK    = "lock"
 
-CONTROL_NODE_CANCEL = "cancel"
-CONTROL_NODE_ROOT_JOB_ID = INPUT_ROOT_JOB_ID
-CONTROL_NODE_TASKS  = "tasks"
-CONTROL_NODE_LOCK   = "lock"
-#CONTROL_NODE_PARENT_TASK_ID = INPUT_PARENT_TASK_ID
+class TASK_STATUS:
+    NEW      = "new"
+    READY    = "ready"
+    FINISHED = "finished"
 
 
 ##### Private objects #####
@@ -77,6 +78,27 @@ def init(client):
 def join(*args_tuple):
     return "/".join(args_tuple)
 
+
+###
+def pget(client, path_list):
+    if not isinstance(path_list, (list, tuple)):
+        path_list = [path_list]
+    return pickle.loads(client.get(join(*path_list))[0])
+
+def pset(client, path_list, value):
+    if not isinstance(path_list, (list, tuple)):
+        path_list = [path_list]
+    name = ( "set_data" if isinstance(client, kazoo.client.TransactionRequest) else "set" )
+    method = getattr(client, name)
+    return method(join(*path_list), pickle.dumps(value))
+
+def pcreate(client, path_list, value):
+    if not isinstance(path_list, (list, tuple)):
+        path_list = [path_list]
+    return client.create(join(*path_list), pickle.dumps(value))
+
+
+###
 def check_transaction(name, results_list, pairs_list = None):
     ok_flag = True
     for (index, result) in enumerate(results_list):

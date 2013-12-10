@@ -4,15 +4,10 @@ import pickle
 import time
 import logging
 
+import kazoo.exceptions
+
 from . import const
 from . import zoo
-
-
-##### Public constants #####
-class TASK_STATUS:
-    NEW      = "new"
-    READY    = "ready"
-    FINISHED = "finished"
 
 
 ##### Private constants #####
@@ -80,35 +75,35 @@ class WorkerThread(threading.Thread):
             self._ready_queue.consume()
 
     def _run_task(self, ready_dict):
-        root_job_id    = ready_dict[zoo.READY_ROOT_JOB_ID]
-        parent_task_id = ready_dict[zoo.READY_ROOT_JOB_ID]
-        job_id         = ready_dict[zoo.READY_JOB_ID]
-        task_id        = ready_dict[zoo.READY_TASK_ID]
-        handler        = ready_dict[zoo.READY_HANDLER]
-        state          = ready_dict[zoo.READY_STATE]
+        job_id = ready_dict[zoo.READY_JOB_ID]
+        task_id = ready_dict[zoo.READY_TASK_ID]
+        state = ready_dict[zoo.READY_STATE]
+        handler = ( ready_dict[zoo.READY_HANDLER] if state is None else None )
         assert not task_id in self._threads_dict, "Duplicating tasks"
+        try:
+            root_job_id = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_ROOT_JOB_ID))
+            parent_task_id = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENT_TASK_ID))
+            created = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_CREATED))
+        except kazoo.exceptions.NoNodeError:
+            _logger.exception("Missing the necessary control nodes for the ready job")
+            return
 
         trans = self._client.transaction()
-        trans.create(zoo.join(zoo.RUNNING_PATH, task_id))
+        zoo.pcreate(trans, (zoo.RUNNING_PATH, task_id), {
+                zoo.RUNNING_JOB_ID:  job_id,
+                zoo.RUNNING_HANDLER: handler,
+                zoo.RUNNING_STATE:   state,
+            })
         for (node, value) in (
-                (zoo.RUNNING_NODE_ROOT_JOB_ID,    root_job_id),
-                (zoo.RUNNING_NODE_PARENT_TASK_ID, parent_task_id),
-                (zoo.RUNNING_NODE_JOB_ID,         job_id),
-                (zoo.RUNNING_NODE_HANDLER,        ready_dict[zoo.READY_HANDLER]),
-                (zoo.RUNNING_NODE_STATE,          state),
-                (zoo.RUNNING_NODE_STATUS,         ( TASK_STATUS.NEW if state is None else TASK_STATUS.READY )),
-                (zoo.RUNNING_NODE_ADDED,          ready_dict[zoo.READY_ADDED]),
-                (zoo.RUNNING_NODE_SPLITTED,       ready_dict[zoo.READY_SPLITTED]),
-                (zoo.RUNNING_NODE_CREATED,        ( ready_dict[zoo.READY_CREATED] or time.time() )),
-                (zoo.RUNNING_NODE_RECYCLED,       time.time()), # FIXME: ready_dict[zoo.READY_RECYCLED]),
-                (zoo.RUNNING_NODE_FINISHED,       None),
+                (zoo.CONTROL_TASK_STATUS,   ( zoo.TASK_STATUS.NEW if state is None else zoo.TASK_STATUS.READY )),
+                (zoo.CONTROL_TASK_CREATED,  ( created or time.time() )),
+                (zoo.CONTROL_TASK_RECYCLED, time.time()),
             ):
-            trans.create(zoo.join(zoo.RUNNING_PATH, task_id, node), pickle.dumps(value))
+            zoo.pset(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, node), value)
         zoo.check_transaction("init_task", trans.commit())
-        lock = self._client.Lock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_NODE_LOCK))
+        lock = self._client.Lock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
         assert lock.acquire(False), "Fresh job was captured by another worker"
 
-        handler = ( ready_dict[zoo.READY_HANDLER] if state is None else None )
         task_thread = _TaskThread(root_job_id, parent_task_id, job_id, task_id, handler, state, self._controller, self._saver)
         self._threads_dict[task_id] = {
             _TASK_THREAD: task_thread,
@@ -137,18 +132,23 @@ class WorkerThread(threading.Thread):
 
     def _controller_unsafe(self, task):
         root_job_id = ( task.get_root_job_id() or task.get_job_id() )
-        return ( self._client.exists(zoo.join(zoo.CONTROL_PATH, root_job_id, zoo.CONTROL_NODE_CANCEL)) is None )
+        return ( self._client.exists(zoo.join(zoo.CONTROL_PATH, root_job_id, zoo.CONTROL_CANCEL)) is None )
 
     def _saver_unsafe(self, task, state):
+        job_id = task.get_job_id()
         task_id = task.get_task_id()
         trans = self._client.transaction()
+        zoo.pset(trans, (zoo.RUNNING_PATH, task_id), {
+                zoo.RUNNING_JOB_ID:  job_id,
+                zoo.RUNNING_HANDLER: None,
+                zoo.RUNNING_STATE:   state,
+            })
         if state is None:
-            trans.set_data(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_NODE_FINISHED), pickle.dumps(time.time()))
-            trans.delete(zoo.join(zoo.CONTROL_PATH, task.get_job_id(), zoo.CONTROL_NODE_TASKS, task_id))
-            status = TASK_STATUS.FINISHED
+            zoo.pset(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED), time.time())
+            status = zoo.TASK_STATUS.FINISHED
         else:
-            status = TASK_STATUS.READY
-        trans.set_data(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_NODE_STATUS), pickle.dumps(status))
+            status = zoo.TASK_STATUS.READY
+        zoo.pset(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_STATUS), status)
         try:
             zoo.check_transaction("saver", trans.commit())
         except zoo.TransactionError:
