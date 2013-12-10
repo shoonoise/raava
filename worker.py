@@ -7,12 +7,17 @@ import logging
 import kazoo.exceptions
 
 from . import const
+from . import events
 from . import zoo
 
 
 ##### Private constants #####
 _TASK_THREAD = "thread"
 _TASK_LOCK   = "lock"
+
+class _REASON:
+    CHECKPOINT = "checkpoint"
+    FORK       = "fork"
 
 
 ##### Private objects #####
@@ -35,6 +40,7 @@ def make_task_builtin(method):
 class WorkerThread(threading.Thread):
     def __init__(self, client, queue_timeout):
         self._client = client
+        self._events_api = events.EventsApi(self._client)
         self._queue_timeout = queue_timeout
         self._ready_queue = self._client.LockingQueue(zoo.READY_PATH)
         self._client_lock = threading.Lock()
@@ -81,8 +87,7 @@ class WorkerThread(threading.Thread):
         handler = ( ready_dict[zoo.READY_HANDLER] if state is None else None )
         assert not task_id in self._threads_dict, "Duplicating tasks"
         try:
-            root_job_id = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_ROOT_JOB_ID))
-            parent_task_id = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENT_TASK_ID))
+            parents_list = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS))
             created = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_CREATED))
         except kazoo.exceptions.NoNodeError:
             _logger.exception("Missing the necessary control nodes for the ready job")
@@ -104,13 +109,13 @@ class WorkerThread(threading.Thread):
         lock = self._client.Lock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
         assert lock.acquire(False), "Fresh job was captured by another worker"
 
-        task_thread = _TaskThread(root_job_id, parent_task_id, job_id, task_id, handler, state, self._controller, self._saver)
+        task_thread = _TaskThread(parents_list, job_id, task_id, handler, state, self._controller, self._saver, self._fork)
         self._threads_dict[task_id] = {
             _TASK_THREAD: task_thread,
             _TASK_LOCK:   lock,
         }
         message = ( "Spawned the new job" if state is None else "Respawned the old job" )
-        _logger.info("%s: %s; task: %s (root: %s)", message, job_id, task_id, root_job_id)
+        _logger.info("%s: %s; task: %s (parents: %s)", message, job_id, task_id, parents_list)
         task_thread.start()
 
     def _cleanup(self):
@@ -130,8 +135,13 @@ class WorkerThread(threading.Thread):
         with self._client_lock:
             return self._saver_unsafe(task, state)
 
+    def _fork(self, task, event_root, handler_type):
+        with self._client_lock:
+            self._fork_unsafe(task, event_root, handler_type)
+
     def _controller_unsafe(self, task):
-        root_job_id = ( task.get_root_job_id() or task.get_job_id() )
+        parents_list = task.get_parents()
+        root_job_id = ( task.get_job_id() if len(parents_list) == 0 else parents_list[0][0] )
         return ( self._client.exists(zoo.join(zoo.CONTROL_PATH, root_job_id, zoo.CONTROL_CANCEL)) is None )
 
     def _saver_unsafe(self, task, state):
@@ -156,18 +166,20 @@ class WorkerThread(threading.Thread):
             raise
         _logger.debug("Saved; status: %s", status)
 
+    def _fork_unsafe(self, task, event_root, handler_type):
+        self._events_api.add_event(event_root, handler_type, task.get_parents() + [(task.get_job_id(), task.get_task_id())])
+
+
 
 ##### Private classes #####
 class _TaskThread(threading.Thread):
-    def __init__(self, root_job_id, parent_task_id, job_id, task_id, handler, state, controller, saver):
-        self._root_job_id = root_job_id
-        self._parent_task_id = parent_task_id
-        self._task_id = task_id
+    def __init__(self, parents_list, job_id, task_id, handler, state, controller, saver, fork):
         self._controller = controller
         self._saver = saver
-        self._task = _Task(root_job_id, parent_task_id, job_id, task_id, handler, state)
+        self._fork = fork
+        self._task = _Task(parents_list, job_id, task_id, handler, state)
         self._stop_flag = False
-        thread_name = "TaskThread::" + task_id#.split("-")[0]
+        thread_name = "TaskThread::" + task_id
         threading.Thread.__init__(self, name=thread_name)
 
 
@@ -195,11 +207,13 @@ class _TaskThread(threading.Thread):
                 _logger.info("Task is cancelled")
                 return
 
-            (_, err, state) = self._task.step()
+            (do_tuple, err, state) = self._task.step()
             if not err is None:
                 _logger.error("Unhandled step() error: %s", err)
                 self._saver(self._task, None)
                 return
+            if not do_tuple is None and do_tuple[0] == _REASON.FORK:
+                self._fork(self._task, *do_tuple[1])
 
             self._saver(self._task, state)
 
@@ -210,10 +224,9 @@ class _TaskThread(threading.Thread):
             _logger.info("Task is stopped")
 
 class _Task:
-    def __init__(self, root_job_id, parent_task_id, job_id, task_id, handler, state):
+    def __init__(self, parents_list, job_id, task_id, handler, state):
         assert len(tuple(filter(None, (handler, state)))) == 1, "Required handler OR state"
-        self._root_job_id = root_job_id
-        self._parent_task_id = parent_task_id
+        self._parents_list = parents_list
         self._job_id = job_id
         self._task_id = task_id
         self._handler = handler
@@ -223,11 +236,8 @@ class _Task:
 
     ### Public ###
 
-    def get_root_job_id(self):
-        return self._root_job_id
-
-    def get_parent_task_id(self):
-        return self._parent_task_id
+    def get_parents(self):
+        return list(self._parents_list)
 
     def get_job_id(self):
         return self._job_id
@@ -235,8 +245,13 @@ class _Task:
     def get_task_id(self):
         return self._task_id
 
+    ###
+
     def checkpoint(self, data = None):
-        self._cont.switch(data)
+        self._cont.switch((_REASON.CHECKPOINT, data))
+
+    def fork(self, event_root, handler_type):
+        self._cont.switch((_REASON.FORK, (event_root, handler_type)))
 
     ###
 

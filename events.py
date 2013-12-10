@@ -28,8 +28,16 @@ class EventsApi:
     def __init__(self, client):
         self._client = client
 
-    def add_event(self, event_root, handler_type, root_job_id = None, parent_task_id = None):
+    def add_event(self, event_root, handler_type, parents_list = None):
         assert isinstance(event_root, rules.EventRoot), "Invalid event type"
+        if not parents_list is None:
+            assert isinstance(parents_list, (tuple, list))
+            for item in parents_list:
+                assert len(item) == 2
+            parents_list = list(parents_list)
+        else:
+            parents_list = []
+
         job_id = str(uuid.uuid4())
         event_root = copy.copy(event_root)
         event_root.get_extra()[rules.EXTRA_HANDLER] = handler_type
@@ -43,8 +51,7 @@ class EventsApi:
         trans = self._client.transaction()
         zoo.lq_put_transaction(trans, zoo.INPUT_PATH, pickle.dumps(input_dict))
         trans.create(zoo.join(zoo.CONTROL_PATH, job_id))
-        zoo.pcreate(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_ROOT_JOB_ID), root_job_id)
-        zoo.pcreate(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENT_TASK_ID), parent_task_id)
+        zoo.pcreate(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS), parents_list)
         zoo.check_transaction("add_event", trans.commit())
 
         _logger.info("Registered job %s", job_id)
@@ -52,8 +59,8 @@ class EventsApi:
 
     def cancel_event(self, job_id):
         try:
-            root_job_id = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_ROOT_JOB_ID))
-            if not root_job_id is None:
+            parents_list = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS))
+            if len(parents_list) != 0:
                 raise NotRootError
             with self._client.Lock(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK)): # FIXME
                 self._client.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_CANCEL))

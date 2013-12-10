@@ -54,13 +54,19 @@ class CollectorThread(threading.Thread):
                 created = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_CREATED))
                 recycled = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_RECYCLED))
             except kazoo.exceptions.NoNodeError:
-                continue
-            if max(created or 0, recycled or 0) + self._delay > time.time():
-                continue # XXX: Do not grab the new or the respawned tasks
-            lock = self._client.Lock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
-            if not lock.acquire(False):
+                # XXX: Garbage (tasks without jobs)
+                lock = self._client.Lock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
+                if not lock.acquire(False):
+                    continue
+                self._remove_running(lock, task_id)
                 continue
 
+            if max(created or 0, recycled or 0) + self._delay > time.time():
+                continue # XXX: Do not grab the new or the respawned tasks
+
+            lock = self._client.Lock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK)) # FIXME
+            if not lock.acquire(False):
+                continue
             # XXX: Lock object will be damaged after these operations
             if zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED)) is None:
                 self._push_back_running(lock, task_id)
@@ -129,8 +135,7 @@ class CollectorThread(threading.Thread):
     def _remove_control(self, lock, job_id):
         try:
             trans = self._client.transaction()
-            trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_ROOT_JOB_ID))
-            trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENT_TASK_ID))
+            trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS))
             for task_id in self._client.get_children(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS)):
                 for node in (
                         zoo.CONTROL_TASK_ADDED,
