@@ -13,9 +13,6 @@ CONTROL_PATH = "/control"
 READY_PATH   = "/ready"
 RUNNING_PATH = "/running"
 
-INPUT_ENTRIES_PATH = INPUT_PATH + "/entries"
-READY_ENTRIES_PATH = READY_PATH + "/entries"
-
 INPUT_JOB_ID = "job_id"
 INPUT_EVENT  = "event"
 INPUT_ADDED  = "added"
@@ -71,6 +68,8 @@ def init(client):
             _logger.info("Created zoo path: %s", path)
         except kazoo.exceptions.NodeExistsError:
             _logger.debug("Zoo path is already exists: %s", path)
+    client.LockingQueue(INPUT_PATH)
+    client.LockingQueue(READY_PATH)
 
 def join(*args_tuple):
     return "/".join(args_tuple)
