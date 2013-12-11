@@ -6,6 +6,11 @@ import logging
 from . import const
 
 
+##### Public constants #####
+IMPORT_PATH  = "path"
+IMPORT_ERROR = "error"
+
+
 ##### Private objects #####
 _logger = logging.getLogger(const.LOGGER_NAME)
 
@@ -38,8 +43,8 @@ class Handlers:
                 except Exception as err:
                     failed_path = os.path.join(root_path, file_name)
                     errors_dict[module_name] = {
-                        "path":  failed_path,
-                        "error": err,
+                        IMPORT_PATH:  failed_path,
+                        IMPORT_ERROR: err,
                     }
                     _logger.exception("cannot import module: %s (path: %s)", module_name, failed_path)
                     continue

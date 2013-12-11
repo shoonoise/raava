@@ -21,6 +21,7 @@ class _FILTER:
     EVENT = "event_filters_dict"
     EXTRA = "extra_filters_dict"
 
+
 ##### Exceptions #####
 class ComparsionError(Exception):
     pass
