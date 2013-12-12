@@ -44,10 +44,11 @@ class EventsApi:
         event_root.get_extra()[rules.EXTRA_JOB_ID] = job_id
 
         input_dict = {
-            zoo.INPUT_JOB_ID:         job_id,
-            zoo.INPUT_EVENT:          event_root,
-            zoo.INPUT_ADDED:          time.time(),
+            zoo.INPUT_JOB_ID: job_id,
+            zoo.INPUT_EVENT:  event_root,
+            zoo.INPUT_ADDED:  time.time(),
         }
+
         trans = self._client.transaction()
         zoo.lq_put_transaction(trans, zoo.INPUT_PATH, pickle.dumps(input_dict))
         trans.create(zoo.join(zoo.CONTROL_PATH, job_id))
@@ -62,7 +63,7 @@ class EventsApi:
             parents_list = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS))
             if len(parents_list) != 0:
                 raise NotRootError
-            with self._client.Lock(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK)): # FIXME
+            with zoo.SingleLock(self._client, zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK)):
                 self._client.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_CANCEL))
         except kazoo.exceptions.NoNodeError:
             raise NoJobError

@@ -107,8 +107,8 @@ class WorkerThread(application.Thread):
             ):
             zoo.pset(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, node), value)
         zoo.check_transaction("init_task", trans.commit())
-        lock = self._client.Lock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
-        assert lock.acquire(False), "Fresh job was captured by another worker"
+        lock = zoo.SingleLock(self._client, zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
+        assert lock.try_acquire(), "Fresh job was captured by another worker"
 
         task_thread = _TaskThread(parents_list, job_id, task_id, handler, state, self._controller, self._saver, self._fork)
         self._threads_dict[task_id] = {

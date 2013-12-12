@@ -118,3 +118,39 @@ def lq_put_transaction(trans, queue_path, data, priority = 100):
             priority=priority,
         ), data, sequence=True)
 
+
+##### Public classes #####
+# FIXME: AssuredLock; try_assured_lock; Lock
+class SingleLock:
+    def __init__(self, client, path):
+        self._client = client
+        self._path = path
+
+    def try_acquire(self, raise_flag = False):
+        try:
+            self._client.create(self._path, ephemeral=True)
+            return True
+        except (kazoo.exceptions.NoNodeError, kazoo.exceptions.NodeExistsError):
+            if raise_flag:
+                raise
+            return False
+        return False
+
+    def acquire(self):
+        import time # FIXME: Fix this bullshit
+        while not self.try_acquire(True):
+            print(self._path)
+            time.sleep(0.001)
+
+    def release(self):
+        try:
+            self._client.delete(self._path)
+        except kazoo.exceptions.NoNodeError:
+            pass
+
+    def __enter__(self):
+        self.acquire()
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.release()
+

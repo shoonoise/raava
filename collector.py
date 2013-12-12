@@ -55,8 +55,8 @@ class CollectorThread(application.Thread):
                 recycled = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_RECYCLED))
             except kazoo.exceptions.NoNodeError:
                 # XXX: Garbage (tasks without jobs)
-                lock = self._client.Lock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
-                if not lock.acquire(False):
+                lock = zoo.SingleLock(self._client, zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
+                if not lock.try_acquire():
                     continue
                 self._remove_running(lock, task_id)
                 continue
@@ -64,10 +64,9 @@ class CollectorThread(application.Thread):
             if max(created or 0, recycled or 0) + self._delay > time.time():
                 continue # XXX: Do not grab the new or the respawned tasks
 
-            lock = self._client.Lock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK)) # FIXME
-            if not lock.acquire(False):
+            lock = zoo.SingleLock(self._client, zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
+            if not lock.try_acquire():
                 continue
-            # XXX: Lock object will be damaged after these operations
             if zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED)) is None:
                 self._push_back_running(lock, task_id)
             else:
@@ -83,11 +82,10 @@ class CollectorThread(application.Thread):
                     continue
             except kazoo.exceptions.NoNodeError:
                 continue
-            lock = self._client.Lock(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK)) # FIXME
-            if not lock.acquire(False):
+            lock = zoo.SingleLock(self._client, zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK))
+            if not lock.try_acquire():
                 continue
 
-            # XXX: Lock object will be damaged after these operations
             self._remove_control(lock, job_id)
 
     ###
@@ -120,7 +118,6 @@ class CollectorThread(application.Thread):
             _logger.exception("Cannot remove running")
 
     def _make_remove_running(self, trans, lock, task_id):
-        trans.delete(zoo.join(lock.path, lock.node))
         trans.delete(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
         trans.delete(zoo.join(zoo.RUNNING_PATH, task_id))
 
@@ -151,7 +148,6 @@ class CollectorThread(application.Thread):
             cancel_path = zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_CANCEL)
             if not self._client.exists(cancel_path) is None:
                 trans.delete(cancel_path)
-            trans.delete(zoo.join(lock.path, lock.node)) # XXX: Damaged lock object
             trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK))
             trans.delete(zoo.join(zoo.CONTROL_PATH, job_id))
             zoo.check_transaction("remove_control", trans.commit())

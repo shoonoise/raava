@@ -51,7 +51,7 @@ class SplitterThread(application.Thread):
         handlers_set = rules.get_handlers(input_dict[zoo.INPUT_EVENT], self._handlers.get_handlers())
         _logger.info("Split job %s to %d tasks", job_id, len(handlers_set))
 
-        with self._client.Lock(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK)):
+        with zoo.SingleLock(self._client, zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK)):
             trans = self._client.transaction()
             trans.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS))
 
