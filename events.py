@@ -4,8 +4,6 @@ import pickle
 import time
 import logging
 
-import kazoo.exceptions
-
 from . import const
 from . import rules
 from . import zoo
@@ -50,9 +48,9 @@ class EventsApi:
         }
 
         trans = self._client.transaction()
-        zoo.lq_put_transaction(trans, zoo.INPUT_PATH, pickle.dumps(input_dict))
+        trans.lq_put(zoo.INPUT_PATH, pickle.dumps(input_dict))
         trans.create(zoo.join(zoo.CONTROL_PATH, job_id))
-        zoo.pcreate(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS), parents_list)
+        trans.pcreate(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS), parents_list)
         zoo.check_transaction("add_event", trans.commit())
 
         _logger.info("Registered job %s", job_id)
@@ -60,13 +58,13 @@ class EventsApi:
 
     def cancel_event(self, job_id):
         try:
-            parents_list = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS))
+            parents_list = self._client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS))
             if len(parents_list) != 0:
                 raise NotRootError
-            with zoo.SingleLock(self._client, zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK)):
+            with self._client.SingleLock(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK)):
                 self._client.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_CANCEL))
-        except kazoo.exceptions.NoNodeError:
+        except zoo.NoNodeError:
             raise NoJobError
-        except kazoo.exceptions.NodeExistsError:
+        except zoo.NodeExistsError:
             pass
 

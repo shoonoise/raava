@@ -4,8 +4,6 @@ import pickle
 import time
 import logging
 
-import kazoo.exceptions
-
 from . import const
 from . import application
 from . import events
@@ -88,14 +86,14 @@ class WorkerThread(application.Thread):
         handler = ( ready_dict[zoo.READY_HANDLER] if state is None else None )
         assert not task_id in self._threads_dict, "Duplicating tasks"
         try:
-            parents_list = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS))
-            created = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_CREATED))
-        except kazoo.exceptions.NoNodeError:
+            parents_list = self._client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS))
+            created = self._client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_CREATED))
+        except zoo.NoNodeError:
             _logger.exception("Missing the necessary control nodes for the ready job")
             return
 
         trans = self._client.transaction()
-        zoo.pcreate(trans, (zoo.RUNNING_PATH, task_id), {
+        trans.pcreate(zoo.join(zoo.RUNNING_PATH, task_id), {
                 zoo.RUNNING_JOB_ID:  job_id,
                 zoo.RUNNING_HANDLER: handler,
                 zoo.RUNNING_STATE:   state,
@@ -105,9 +103,9 @@ class WorkerThread(application.Thread):
                 (zoo.CONTROL_TASK_CREATED,  ( created or time.time() )),
                 (zoo.CONTROL_TASK_RECYCLED, time.time()),
             ):
-            zoo.pset(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, node), value)
+            trans.pset(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, node), value)
         zoo.check_transaction("init_task", trans.commit())
-        lock = zoo.SingleLock(self._client, zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
+        lock = self._client.SingleLock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
         assert lock.try_acquire(), "Fresh job was captured by another worker"
 
         task_thread = _TaskThread(parents_list, job_id, task_id, handler, state, self._controller, self._saver, self._fork)
@@ -149,17 +147,17 @@ class WorkerThread(application.Thread):
         job_id = task.get_job_id()
         task_id = task.get_task_id()
         trans = self._client.transaction()
-        zoo.pset(trans, (zoo.RUNNING_PATH, task_id), {
+        trans.pset(zoo.join(zoo.RUNNING_PATH, task_id), {
                 zoo.RUNNING_JOB_ID:  job_id,
                 zoo.RUNNING_HANDLER: None,
                 zoo.RUNNING_STATE:   state,
             })
         if state is None:
-            zoo.pset(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED), time.time())
+            trans.pset(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED), time.time())
             status = zoo.TASK_STATUS.FINISHED
         else:
             status = zoo.TASK_STATUS.READY
-        zoo.pset(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_STATUS), status)
+        trans.pset(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_STATUS), status)
         try:
             zoo.check_transaction("saver", trans.commit())
         except zoo.TransactionError:

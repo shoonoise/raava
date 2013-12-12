@@ -2,8 +2,6 @@ import pickle
 import time
 import logging
 
-import kazoo.exceptions
-
 from . import const
 from . import application
 from . import zoo
@@ -49,13 +47,13 @@ class CollectorThread(application.Thread):
                 break
 
             try:
-                running_dict = zoo.pget(self._client, (zoo.RUNNING_PATH, task_id))
+                running_dict = self._client.pget(zoo.join(zoo.RUNNING_PATH, task_id))
                 job_id = running_dict[zoo.RUNNING_JOB_ID]
-                created = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_CREATED))
-                recycled = zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_RECYCLED))
-            except kazoo.exceptions.NoNodeError:
+                created = self._client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_CREATED))
+                recycled = self._client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_RECYCLED))
+            except zoo.NoNodeError:
                 # XXX: Garbage (tasks without jobs)
-                lock = zoo.SingleLock(self._client, zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
+                lock = self._client.SingleLock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
                 if not lock.try_acquire():
                     continue
                 self._remove_running(lock, task_id)
@@ -64,10 +62,10 @@ class CollectorThread(application.Thread):
             if max(created or 0, recycled or 0) + self._delay > time.time():
                 continue # XXX: Do not grab the new or the respawned tasks
 
-            lock = zoo.SingleLock(self._client, zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
+            lock = self._client.SingleLock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
             if not lock.try_acquire():
                 continue
-            if zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED)) is None:
+            if self._client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED)) is None:
                 self._push_back_running(lock, task_id)
             else:
                 self._remove_running(lock, task_id) # TODO: Garbage lifetime
@@ -80,9 +78,9 @@ class CollectorThread(application.Thread):
             try:
                 if not self._is_job_finished(job_id):
                     continue
-            except kazoo.exceptions.NoNodeError:
+            except zoo.NoNodeError:
                 continue
-            lock = zoo.SingleLock(self._client, zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK))
+            lock = self._client.SingleLock(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK))
             if not lock.try_acquire():
                 continue
 
@@ -91,17 +89,17 @@ class CollectorThread(application.Thread):
     ###
 
     def _push_back_running(self, lock, task_id):
-        running_dict = zoo.pget(self._client, (zoo.RUNNING_PATH, task_id))
+        running_dict = self._client.pget(zoo.join(zoo.RUNNING_PATH, task_id))
         job_id = running_dict[zoo.RUNNING_JOB_ID]
         trans = self._client.transaction()
         self._make_remove_running(trans, lock, task_id)
-        zoo.lq_put_transaction(trans, zoo.READY_PATH, pickle.dumps({
+        trans.lq_put(zoo.READY_PATH, pickle.dumps({
                 zoo.READY_JOB_ID:  job_id,
                 zoo.READY_TASK_ID: task_id,
                 zoo.READY_HANDLER: running_dict[zoo.RUNNING_HANDLER],
                 zoo.READY_STATE:   running_dict[zoo.RUNNING_STATE],
             }))
-        zoo.pset(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_RECYCLED), time.time())
+        trans.pset(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_RECYCLED), time.time())
         try:
             zoo.check_transaction("push_back_running", trans.commit())
             _logger.info("Pushed back: %s", task_id)
@@ -125,7 +123,7 @@ class CollectorThread(application.Thread):
 
     def _is_job_finished(self, job_id):
         return ( set(
-                zoo.pget(self._client, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_STATUS))
+                self._client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_STATUS))
                 for task_id in self._client.get_children(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS))
             ) == set((zoo.TASK_STATUS.FINISHED,)) )
 
@@ -152,6 +150,6 @@ class CollectorThread(application.Thread):
             trans.delete(zoo.join(zoo.CONTROL_PATH, job_id))
             zoo.check_transaction("remove_control", trans.commit())
             _logger.info("Control removed: %s", job_id)
-        except (kazoo.exceptions.NoNodeError, zoo.TransactionError):
+        except (zoo.NoNodeError, zoo.TransactionError):
             _logger.error("Cannot remove control", exc_info=True)
 

@@ -51,7 +51,7 @@ class SplitterThread(application.Thread):
         handlers_set = rules.get_handlers(input_dict[zoo.INPUT_EVENT], self._handlers.get_handlers())
         _logger.info("Split job %s to %d tasks", job_id, len(handlers_set))
 
-        with zoo.SingleLock(self._client, zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK)):
+        with self._client.SingleLock(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK)):
             trans = self._client.transaction()
             trans.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS))
 
@@ -66,9 +66,9 @@ class SplitterThread(application.Thread):
                         (zoo.CONTROL_TASK_FINISHED, None),
                         (zoo.CONTROL_TASK_STATUS,   zoo.TASK_STATUS.NEW),
                     ):
-                    zoo.pcreate(trans, (zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, node), value)
+                    trans.pcreate(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, node), value)
 
-                zoo.lq_put_transaction(trans, zoo.READY_PATH, pickle.dumps({
+                trans.lq_put(zoo.READY_PATH, pickle.dumps({
                         zoo.READY_JOB_ID:  job_id,
                         zoo.READY_TASK_ID: task_id,
                         zoo.READY_HANDLER: self._make_handler_pickle(handler, input_dict[zoo.INPUT_EVENT]),

@@ -1,8 +1,11 @@
 import pickle
+import functools
 import logging
 
 import kazoo.client
-import kazoo.exceptions
+import kazoo.protocol.paths
+from kazoo.exceptions import * # pylint: disable=W0401,W0614
+from kazoo.protocol.paths import join # pylint: disable=W0611
 
 from . import const
 
@@ -49,14 +52,14 @@ _logger = logging.getLogger(const.LOGGER_NAME)
 
 
 ##### Exceptions #####
-class TransactionError(kazoo.exceptions.KazooException):
+class TransactionError(KazooException):
     pass
 
 
 ##### Public methods #####
 def connect(hosts_list):
     hosts = ",".join(hosts_list)
-    client = kazoo.client.KazooClient(hosts=hosts)
+    client = Client(hosts=hosts)
     client.start()
     _logger.info("Started zookeeper client on hosts: %s", hosts)
     return client
@@ -66,32 +69,10 @@ def init(client):
         try:
             client.create(path, makepath=True)
             _logger.info("Created zoo path: %s", path)
-        except kazoo.exceptions.NodeExistsError:
+        except NodeExistsError:
             _logger.debug("Zoo path is already exists: %s", path)
     client.LockingQueue(INPUT_PATH)._ensure_paths() # pylint: disable=W0212
     client.LockingQueue(READY_PATH)._ensure_paths() # pylint: disable=W0212
-
-def join(*args_tuple):
-    return "/".join(args_tuple)
-
-
-###
-def pget(client, path_list):
-    if not isinstance(path_list, (list, tuple)):
-        path_list = [path_list]
-    return pickle.loads(client.get(join(*path_list))[0])
-
-def pset(client, path_list, value):
-    if not isinstance(path_list, (list, tuple)):
-        path_list = [path_list]
-    name = ( "set_data" if isinstance(client, kazoo.client.TransactionRequest) else "set" )
-    method = getattr(client, name)
-    return method(join(*path_list), pickle.dumps(value))
-
-def pcreate(client, path_list, value):
-    if not isinstance(path_list, (list, tuple)):
-        path_list = [path_list]
-    return client.create(join(*path_list), pickle.dumps(value))
 
 
 ###
@@ -112,15 +93,8 @@ def check_transaction(name, results_list, pairs_list = None):
             _logger.error("Failed transaction \"%s\": %s", name, results_list)
         raise TransactionError("Failed transaction: %s" % (name))
 
-def lq_put_transaction(trans, queue_path, data, priority = 100):
-    trans.create("{path}/entries/entry-{priority:03d}-".format(
-            path=queue_path,
-            priority=priority,
-        ), data, sequence=True)
-
 
 ##### Public classes #####
-# FIXME: AssuredLock; try_assured_lock; Lock
 class SingleLock:
     def __init__(self, client, path):
         self._client = client
@@ -130,7 +104,7 @@ class SingleLock:
         try:
             self._client.create(self._path, ephemeral=True)
             return True
-        except (kazoo.exceptions.NoNodeError, kazoo.exceptions.NodeExistsError):
+        except (NoNodeError, NodeExistsError):
             if raise_flag:
                 raise
             return False
@@ -145,7 +119,7 @@ class SingleLock:
     def release(self):
         try:
             self._client.delete(self._path)
-        except kazoo.exceptions.NoNodeError:
+        except NoNodeError:
             pass
 
     def __enter__(self):
@@ -153,4 +127,36 @@ class SingleLock:
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.release()
+
+class Client(kazoo.client.KazooClient): # pylint: disable=R0904
+    def __init__(self, *args_tuple, **kwargs_dict):
+        self.SingleLock = functools.partial(SingleLock, self)
+        kazoo.client.KazooClient.__init__(self, *args_tuple, **kwargs_dict)
+
+    def pget(self, path):
+        return pickle.loads(self.get(path)[0])
+
+    def pset(self, path, value):
+        return self.set(path, pickle.dumps(value))
+
+    def pcreate(self, path, value):
+        return self.create(path, pickle.dumps(value))
+
+    def transaction(self):
+        return TransactionRequest(self)
+
+class TransactionRequest(kazoo.client.TransactionRequest):
+    def lq_put(self, queue_path, data, priority = 100):
+        if isinstance(queue_path, (list, tuple)):
+            queue_path = kazoo.protocol.paths.join(*queue_path)
+        self.create("{path}/entries/entry-{priority:03d}-".format(
+                path=queue_path,
+                priority=priority,
+            ), data, sequence=True)
+
+    def pset(self, path, value):
+        return self.set_data(path, pickle.dumps(value))
+
+    def pcreate(self, path, value):
+        return self.create(path, pickle.dumps(value))
 
