@@ -32,7 +32,7 @@ def setup_builtins(builtins_dict):
     for (name, obj) in builtins_dict.items():
         setattr(obj, _BUILTIN_ID, None)
         setattr(builtins, name, obj)
-        _logger.info("Mapped built-in \"%s\" --> %s", name, str(obj))
+        _logger.debug("Mapped built-in \"%s\" --> %s", name, str(obj))
 
 def cleanup_builtins():
     for name in dir(builtins):
@@ -40,7 +40,7 @@ def cleanup_builtins():
         if hasattr(obj, _BUILTIN_ID):
             delattr(builtins, name)
             delattr(obj, _BUILTIN_ID)
-            _logger.info("Removed built-in \"%s\" --> %s", name, str(obj))
+            _logger.debug("Removed built-in \"%s\" --> %s", name, str(obj))
 
 
 ###
