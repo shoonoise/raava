@@ -7,6 +7,7 @@ import logging
 import kazoo.exceptions
 
 from . import const
+from . import application
 from . import events
 from . import zoo
 
@@ -37,7 +38,7 @@ def make_task_builtin(method):
 
 
 ##### Public classes #####
-class WorkerThread(threading.Thread):
+class WorkerThread(application.Thread):
     def __init__(self, client, queue_timeout):
         self._client = client
         self._events_api = events.EventsApi(self._client)
@@ -49,7 +50,7 @@ class WorkerThread(threading.Thread):
 
         global _workers
         _workers += 1
-        threading.Thread.__init__(self, name="Worker::{workers:03d}".format(workers=_workers))
+        application.Thread.__init__(self, name="Worker::{workers:03d}".format(workers=_workers))
 
 
     ### Public ###

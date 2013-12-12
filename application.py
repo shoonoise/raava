@@ -1,3 +1,4 @@
+import threading
 import signal
 import time
 import logging
@@ -44,9 +45,15 @@ def init_logging(level = logging.DEBUG, log_file_path = None, line_format = None
 
 
 ##### Public classes #####
+class Thread(threading.Thread):
+    def alive_children(self):
+        return 0
+
+
 class Application:
-    def __init__(self, workers, quit_wait, interval, worker_args_tuple = None, worker_kwargs_dict = None):
+    def __init__(self, workers, die_after, quit_wait, interval, worker_args_tuple = None, worker_kwargs_dict = None):
         self._workers = workers
+        self._die_after = die_after
         self._quit_wait = quit_wait
         self._interval = interval
         self._worker_args_list = ( worker_args_tuple or () )
@@ -60,6 +67,7 @@ class Application:
             ):
             self.set_signal_handler(signum, handler)
         self._threads_dict = {}
+        self._respawns = 0
 
 
     ### Public ###
@@ -90,10 +98,11 @@ class Application:
             thread.stop()
         _logger.debug("Waiting for stop of the workers...")
         for _ in range(self._quit_wait):
-            self._cleanup_threads()
+            self._cleanup_threads(False)
             if len(self._threads_dict) == 0:
                 break
             time.sleep(1)
+        _logger.debug("Bye-bye ^_^")
 
 
     ### Private ###
@@ -117,24 +126,34 @@ class Application:
                 finally:
                     self._signal_handlers_dict[signum][_SIGNAL_ARGS] = None
 
-    def _cleanup_threads(self):
+    def _cleanup_threads(self, pass_children_flag = True):
         for thread in tuple(self._threads_dict):
             if not thread.is_alive():
-                data = self._threads_dict.pop(thread)
-                try:
-                    self.cleanup(data)
-                except Exception:
-                    _logger.exception("Cleanup error")
-                _logger.info("Dead worker is removed: %s", thread)
+                alive_children = thread.alive_children()
+                if alive_children == 0 or pass_children_flag:
+                    data = self._threads_dict.pop(thread)
+                    try:
+                        self.cleanup(data)
+                    except Exception:
+                        _logger.exception("Cleanup error")
+                    _logger.info("Dead worker is removed: %s", thread.name)
+                else:
+                    _logger.info("Dead worker %s has %d unfinished children", thread.name, alive_children)
 
     def _respawn_threads(self):
+        if self._respawns + len(self._threads_dict) >= self._die_after:
+            _logger.warn("Reached the respawn maximum")
+            self._quit()
+            return
+
         while len(self._threads_dict) < self._workers:
             (thread, data) = self.spawn(*self._worker_args_list, **self._worker_kwargs_dict)
             thread.start()
-            _logger.info("Spawned a new worker: %s", thread)
+            _logger.info("Spawned the new worker: %s", thread.name)
             self._threads_dict[thread] = data
+            self._respawns += 1
 
-    def _quit(self, signum, frame):
+    def _quit(self, signum = None, frame = None):
         _logger.info("Quitting...")
         self._stop_flag = True
 

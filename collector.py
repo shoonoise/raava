@@ -1,4 +1,3 @@
-import threading
 import pickle
 import time
 import logging
@@ -6,6 +5,7 @@ import logging
 import kazoo.exceptions
 
 from . import const
+from . import application
 from . import zoo
 
 
@@ -15,7 +15,7 @@ _collectors = 0
 
 
 ##### Public classes #####
-class CollectorThread(threading.Thread):
+class CollectorThread(application.Thread):
     def __init__(self, client, interval, delay, recycled_priority):
         self._client = client
         self._interval = interval
@@ -25,7 +25,7 @@ class CollectorThread(threading.Thread):
 
         global _collectors
         _collectors += 1
-        threading.Thread.__init__(self, name="Collector::{collectors:03d}".format(collectors=_collectors))
+        application.Thread.__init__(self, name="Collector::{collectors:03d}".format(collectors=_collectors))
 
 
     ### Public ###

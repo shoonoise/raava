@@ -1,4 +1,3 @@
-import threading
 import pickle
 import uuid
 import copy
@@ -6,6 +5,7 @@ import time
 import logging
 
 from . import const
+from . import application
 from . import rules
 from . import zoo
 
@@ -16,7 +16,7 @@ _splitters = 0
 
 
 ##### Public classes #####
-class SplitterThread(threading.Thread):
+class SplitterThread(application.Thread):
     def __init__(self, client, handlers, queue_timeout):
         self._client = client
         self._handlers = handlers
@@ -26,7 +26,7 @@ class SplitterThread(threading.Thread):
 
         global _splitters
         _splitters += 1
-        threading.Thread.__init__(self, name="Splitter::{splitters:03d}".format(splitters=_splitters))
+        application.Thread.__init__(self, name="Splitter::{splitters:03d}".format(splitters=_splitters))
 
 
 
