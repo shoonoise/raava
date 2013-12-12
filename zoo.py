@@ -68,8 +68,8 @@ def init(client):
             _logger.info("Created zoo path: %s", path)
         except kazoo.exceptions.NodeExistsError:
             _logger.debug("Zoo path is already exists: %s", path)
-    client.LockingQueue(INPUT_PATH)
-    client.LockingQueue(READY_PATH)
+    client.LockingQueue(INPUT_PATH)._ensure_paths() # pylint: disable=W0212
+    client.LockingQueue(READY_PATH)._ensure_paths() # pylint: disable=W0212
 
 def join(*args_tuple):
     return "/".join(args_tuple)
