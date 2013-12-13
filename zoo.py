@@ -64,13 +64,18 @@ def connect(hosts_list):
     _logger.info("Started zookeeper client on hosts: %s", hosts)
     return client
 
-def init(client):
+def init(client, fatal_flag = False):
     for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_PATH):
         try:
             client.create(path, makepath=True)
             _logger.info("Created zoo path: %s", path)
         except NodeExistsError:
-            _logger.debug("Zoo path is already exists: %s", path)
+            msg_tuple = ("Zoo path is already exists: %s", path)
+            if not fatal_flag:
+                _logger.debug(*msg_tuple)
+            else:
+                _logger.error(*msg_tuple)
+                raise
     client.LockingQueue(INPUT_PATH)._ensure_paths() # pylint: disable=W0212
     client.LockingQueue(READY_PATH)._ensure_paths() # pylint: disable=W0212
 
