@@ -39,7 +39,6 @@ def make_task_builtin(method):
 class WorkerThread(application.Thread):
     def __init__(self, client, queue_timeout):
         self._client = client
-        self._events_api = events.EventsApi(self._client)
         self._queue_timeout = queue_timeout
         self._ready_queue = self._client.LockingQueue(zoo.READY_PATH)
         self._client_lock = threading.Lock()
@@ -166,7 +165,7 @@ class WorkerThread(application.Thread):
         _logger.debug("Saved; status: %s", status)
 
     def _fork_unsafe(self, task, event_root, handler_type):
-        self._events_api.add_event(event_root, handler_type, task.get_parents() + [(task.get_job_id(), task.get_task_id())])
+        events.add_event(self._client, event_root, handler_type, task.get_parents() + [(task.get_job_id(), task.get_task_id())])
 
 
 
