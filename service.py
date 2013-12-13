@@ -76,7 +76,7 @@ class Main:
                 ARG_QUIT_WAIT,
                 ARG_INTERVAL,
             ) + tuple(self._args_list) :
-            config.addArgument(arg_tuple)
+            config.add_argument(arg_tuple)
         self._options = config.sync((MAIN_SECTION, self._app_section))
 
         application.init_logging(
