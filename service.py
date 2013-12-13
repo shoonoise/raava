@@ -85,7 +85,7 @@ class Main:
             self._options[OPTION_LOG_FILE],
         )
 
-        client = zoo.connect(self._options.nodes_list)
+        client = zoo.connect(self._options[OPTION_ZOO_NODES])
         zoo.init(client)
         client.stop()
 
