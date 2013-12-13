@@ -1,5 +1,6 @@
 #!/usr/bin/env pypy3
 
+
 import sys
 
 from ulib import optconf
@@ -14,8 +15,8 @@ from . import application
 ##### Private constants #####
 MAIN_SECTION = "main"
 
-OPTION_LOG_FILE  = ("log-file",  "log_file_path", None,           validators.common.validEmpty)
 OPTION_LOG_LEVEL = ("log-level", "log_level",     "INFO",         str)
+OPTION_LOG_FILE  = ("log-file",  "log_file_path", None,           validators.common.validEmpty)
 OPTION_ZOO_NODES = ("zoo-nodes", "nodes_list",    ("localhost",), validators.common.validStringList)
 OPTION_WORKERS   = ("workers",   "workers",       10,             lambda arg: validators.common.validNumber(arg, 1))
 OPTION_DIE_AFTER = ("die-after", "die_after",     100,            lambda arg: validators.common.validNumber(arg, 1))
@@ -47,10 +48,10 @@ class Main:
     def run(self):
         self._init()
         self._app(
-            self._options.workers, # TODO: getattr
-            self._options.die_after,
-            self._options.quit_wait,
-            self._options.interval,
+            self._options[OPTION_WORKERS],
+            self._options[OPTION_DIE_AFTER],
+            self._options[OPTION_QUIT_WAIT],
+            self._options[OPTION_INTERVAL],
             self.construct(self._options),
         ).run()
 
@@ -80,8 +81,8 @@ class Main:
         self._options = config.sync((MAIN_SECTION, self._app_section))
 
         application.init_logging(
-            self._options.log_level, # TODO: getattr
-            self._options.log_file_path,
+            self._options[OPTION_LOG_LEVEL],
+            self._options[OPTION_LOG_FILE],
         )
 
         client = zoo.connect(self._options.nodes_list)
