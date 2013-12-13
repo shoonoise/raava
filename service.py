@@ -16,12 +16,12 @@ from . import application
 MAIN_SECTION = "main"
 
 OPTION_LOG_LEVEL = ("log-level", "log_level",     "INFO",         str)
-OPTION_LOG_FILE  = ("log-file",  "log_file_path", None,           validators.common.validEmpty)
-OPTION_ZOO_NODES = ("zoo-nodes", "nodes_list",    ("localhost",), validators.common.validStringList)
-OPTION_WORKERS   = ("workers",   "workers",       10,             lambda arg: validators.common.validNumber(arg, 1))
-OPTION_DIE_AFTER = ("die-after", "die_after",     100,            lambda arg: validators.common.validNumber(arg, 1))
-OPTION_QUIT_WAIT = ("quit-wait", "quit_wait",     10,             lambda arg: validators.common.validNumber(arg, 0))
-OPTION_INTERVAL  = ("interval",  "interval",      0.01,           lambda arg: validators.common.validNumber(arg, 0, value_type=float))
+OPTION_LOG_FILE  = ("log-file",  "log_file_path", None,           validators.common.valid_empty)
+OPTION_ZOO_NODES = ("zoo-nodes", "nodes_list",    ("localhost",), validators.common.valid_string_list)
+OPTION_WORKERS   = ("workers",   "workers",       10,             lambda arg: validators.common.valid_number(arg, 1))
+OPTION_DIE_AFTER = ("die-after", "die_after",     100,            lambda arg: validators.common.valid_number(arg, 1))
+OPTION_QUIT_WAIT = ("quit-wait", "quit_wait",     10,             lambda arg: validators.common.valid_number(arg, 0))
+OPTION_INTERVAL  = ("interval",  "interval",      0.01,           lambda arg: validators.common.valid_number(arg, 0, value_type=float))
 
 ARG_LOG_FILE  = (("-l", OPTION_LOG_FILE[0],),  OPTION_LOG_FILE,  { "action" : "store", "metavar" : "<file>" })
 ARG_LOG_LEVEL = (("-L", OPTION_LOG_LEVEL[0],), OPTION_LOG_LEVEL, { "action" : "store", "metavar" : "<level>" })
