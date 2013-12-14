@@ -22,7 +22,7 @@ class NotRootError(Exception):
 
 
 ##### Public methods #####
-def add_event(client, event_root, handler_type, parents_list = None):
+def add(client, event_root, handler_type, parents_list = None):
     assert isinstance(event_root, rules.EventRoot), "Invalid event type"
     if not parents_list is None:
         assert isinstance(parents_list, (tuple, list))
@@ -53,7 +53,7 @@ def add_event(client, event_root, handler_type, parents_list = None):
     _logger.info("Registered job %s", job_id)
     return job_id
 
-def cancel_event(client, job_id):
+def cancel(client, job_id):
     try:
         # XXX: There is no need to control lock
         parents_list = client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_PARENTS))

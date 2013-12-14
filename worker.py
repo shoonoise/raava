@@ -169,7 +169,7 @@ class WorkerThread(application.Thread):
         _logger.debug("Saved; status: %s", status)
 
     def _fork_unsafe(self, task, event_root, handler_type):
-        events.add_event(self._client, event_root, handler_type, task.get_parents() + [(task.get_job_id(), task.get_task_id())])
+        events.add(self._client, event_root, handler_type, task.get_parents() + [(task.get_job_id(), task.get_task_id())])
 
 
 
