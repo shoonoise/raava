@@ -30,6 +30,7 @@ CONTROL_TASK_FINISHED  = "finished"
 CONTROL_TASK_STATUS    = "status"
 CONTROL_CANCEL         = "cancel"
 CONTROL_LOCK           = "lock"
+CONTROL_LOCK_PATH      = join(CONTROL_PATH, CONTROL_LOCK)
 
 READY_JOB_ID   = INPUT_JOB_ID
 READY_TASK_ID  = "task_id"
@@ -78,6 +79,7 @@ def init(client, fatal_flag = False):
                 raise
     client.LockingQueue(INPUT_PATH)._ensure_paths() # pylint: disable=W0212
     client.LockingQueue(READY_PATH)._ensure_paths() # pylint: disable=W0212
+    client.Lock(CONTROL_LOCK_PATH)._ensure_path() # pylint: disable=W0212
 
 
 ###

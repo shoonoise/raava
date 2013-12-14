@@ -5,6 +5,7 @@ import logging
 from . import const
 from . import application
 from . import zoo
+from . import events
 
 
 ##### Private objects #####
@@ -47,6 +48,7 @@ class CollectorThread(application.Thread):
                 break
 
             try:
+                # XXX: There is no need to control lock
                 running_dict = self._client.pget(zoo.join(zoo.RUNNING_PATH, task_id))
                 job_id = running_dict[zoo.RUNNING_JOB_ID]
                 created = self._client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_CREATED))
@@ -72,11 +74,14 @@ class CollectorThread(application.Thread):
 
     def _poll_control(self):
         for job_id in self._client.get_children(zoo.CONTROL_PATH):
+            if job_id == zoo.CONTROL_LOCK:
+                continue
+
             if self._stop_flag:
                 break
 
             try:
-                if not self._is_job_finished(job_id):
+                if not events.is_finished(self._client, job_id):
                     continue
             except zoo.NoNodeError:
                 continue
@@ -92,7 +97,8 @@ class CollectorThread(application.Thread):
         running_dict = self._client.pget(zoo.join(zoo.RUNNING_PATH, task_id))
         job_id = running_dict[zoo.RUNNING_JOB_ID]
         trans = self._client.transaction()
-        self._make_remove_running(trans, lock, task_id)
+        trans.delete(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
+        trans.delete(zoo.join(zoo.RUNNING_PATH, task_id))
         trans.lq_put(zoo.READY_PATH, pickle.dumps({
                 zoo.READY_JOB_ID:  job_id,
                 zoo.READY_TASK_ID: task_id,
@@ -108,24 +114,15 @@ class CollectorThread(application.Thread):
 
     def _remove_running(self, lock, task_id):
         trans = self._client.transaction()
-        self._make_remove_running(trans, lock, task_id)
+        trans.delete(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
+        trans.delete(zoo.join(zoo.RUNNING_PATH, task_id))
         try:
             zoo.check_transaction("remove_running", trans.commit())
             _logger.info("Running removed: %s", task_id)
         except zoo.TransactionError:
             _logger.exception("Cannot remove running")
 
-    def _make_remove_running(self, trans, lock, task_id):
-        trans.delete(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
-        trans.delete(zoo.join(zoo.RUNNING_PATH, task_id))
-
     ###
-
-    def _is_job_finished(self, job_id):
-        return ( set(
-                self._client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_STATUS))
-                for task_id in self._client.get_children(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS))
-            ) == set((zoo.TASK_STATUS.FINISHED,)) )
 
     def _remove_control(self, lock, job_id):
         try:
@@ -143,12 +140,13 @@ class CollectorThread(application.Thread):
                     trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, node))
                 trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id))
             trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS))
-            cancel_path = zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_CANCEL)
-            if not self._client.exists(cancel_path) is None:
-                trans.delete(cancel_path)
             trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK))
             trans.delete(zoo.join(zoo.CONTROL_PATH, job_id))
-            zoo.check_transaction("remove_control", trans.commit())
+            with self._client.Lock(zoo.CONTROL_LOCK_PATH):
+                cancel_path = zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_CANCEL)
+                if not self._client.exists(cancel_path) is None:
+                    trans.delete(cancel_path)
+                zoo.check_transaction("remove_control", trans.commit())
             _logger.info("Control removed: %s", job_id)
         except (zoo.NoNodeError, zoo.TransactionError):
             _logger.error("Cannot remove control", exc_info=True)
