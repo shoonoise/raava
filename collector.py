@@ -74,9 +74,6 @@ class CollectorThread(application.Thread):
 
     def _poll_control(self):
         for job_id in self._client.get_children(zoo.CONTROL_JOBS_PATH):
-            if job_id == zoo.CONTROL_LOCK:
-                continue
-
             if self._stop_flag:
                 break
 
