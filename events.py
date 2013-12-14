@@ -45,8 +45,8 @@ def add_event(client, event_root, handler_type, parents_list = None):
 
     trans = client.transaction()
     trans.lq_put(zoo.INPUT_PATH, pickle.dumps(input_dict))
-    trans.create(zoo.join(zoo.CONTROL_PATH, job_id))
-    trans.pcreate(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS), parents_list)
+    trans.create(zoo.join(zoo.CONTROL_JOBS_PATH, job_id))
+    trans.pcreate(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_PARENTS), parents_list)
     with client.Lock(zoo.CONTROL_LOCK_PATH):
         zoo.check_transaction("add_event", trans.commit())
 
@@ -56,10 +56,10 @@ def add_event(client, event_root, handler_type, parents_list = None):
 def cancel_event(client, job_id):
     try:
         # XXX: There is no need to control lock
-        parents_list = client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS))
+        parents_list = client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_PARENTS))
         if len(parents_list) != 0:
             raise NotRootError
-        client.create(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_CANCEL))
+        client.create(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_CANCEL))
     except zoo.NoNodeError:
         raise NoJobError
     except zoo.NodeExistsError:
@@ -68,7 +68,7 @@ def cancel_event(client, job_id):
 def is_finished(client, job_id):
     with client.Lock(zoo.CONTROL_LOCK_PATH):
         return ( set(
-                client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_STATUS))
-                for task_id in client.get_children(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS))
+                client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_STATUS))
+                for task_id in client.get_children(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS))
             ) == set((zoo.TASK_STATUS.FINISHED,)) )
 

@@ -51,8 +51,8 @@ class CollectorThread(application.Thread):
                 # XXX: There is no need to control lock
                 running_dict = self._client.pget(zoo.join(zoo.RUNNING_PATH, task_id))
                 job_id = running_dict[zoo.RUNNING_JOB_ID]
-                created = self._client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_CREATED))
-                recycled = self._client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_RECYCLED))
+                created = self._client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_CREATED))
+                recycled = self._client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_RECYCLED))
             except zoo.NoNodeError:
                 # XXX: Garbage (tasks without jobs)
                 lock = self._client.SingleLock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
@@ -67,13 +67,13 @@ class CollectorThread(application.Thread):
             lock = self._client.SingleLock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
             if not lock.try_acquire():
                 continue
-            if self._client.pget(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED)) is None:
+            if self._client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED)) is None:
                 self._push_back_running(lock, task_id)
             else:
                 self._remove_running(lock, task_id) # TODO: Garbage lifetime
 
     def _poll_control(self):
-        for job_id in self._client.get_children(zoo.CONTROL_PATH):
+        for job_id in self._client.get_children(zoo.CONTROL_JOBS_PATH):
             if job_id == zoo.CONTROL_LOCK:
                 continue
 
@@ -85,7 +85,7 @@ class CollectorThread(application.Thread):
                     continue
             except zoo.NoNodeError:
                 continue
-            lock = self._client.SingleLock(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK))
+            lock = self._client.SingleLock(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_LOCK))
             if not lock.try_acquire():
                 continue
 
@@ -105,7 +105,7 @@ class CollectorThread(application.Thread):
                 zoo.READY_HANDLER: running_dict[zoo.RUNNING_HANDLER],
                 zoo.READY_STATE:   running_dict[zoo.RUNNING_STATE],
             }))
-        trans.pset(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_RECYCLED), time.time())
+        trans.pset(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_RECYCLED), time.time())
         try:
             zoo.check_transaction("push_back_running", trans.commit())
             _logger.info("Pushed back: %s", task_id)
@@ -127,8 +127,8 @@ class CollectorThread(application.Thread):
     def _remove_control(self, lock, job_id):
         try:
             trans = self._client.transaction()
-            trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_PARENTS))
-            for task_id in self._client.get_children(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS)):
+            trans.delete(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_PARENTS))
+            for task_id in self._client.get_children(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS)):
                 for node in (
                         zoo.CONTROL_TASK_ADDED,
                         zoo.CONTROL_TASK_SPLITTED,
@@ -137,13 +137,13 @@ class CollectorThread(application.Thread):
                         zoo.CONTROL_TASK_FINISHED,
                         zoo.CONTROL_TASK_STATUS,
                     ):
-                    trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id, node))
-                trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS, task_id))
-            trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_TASKS))
-            trans.delete(zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_LOCK))
-            trans.delete(zoo.join(zoo.CONTROL_PATH, job_id))
+                    trans.delete(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, node))
+                trans.delete(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id))
+            trans.delete(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS))
+            trans.delete(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_LOCK))
+            trans.delete(zoo.join(zoo.CONTROL_JOBS_PATH, job_id))
             with self._client.Lock(zoo.CONTROL_LOCK_PATH):
-                cancel_path = zoo.join(zoo.CONTROL_PATH, job_id, zoo.CONTROL_CANCEL)
+                cancel_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_CANCEL)
                 if not self._client.exists(cancel_path) is None:
                     trans.delete(cancel_path)
                 zoo.check_transaction("remove_control", trans.commit())
