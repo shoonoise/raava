@@ -85,6 +85,7 @@ class WorkerThread(application.Thread):
         handler = ( ready_dict[zoo.READY_HANDLER] if state is None else None )
         assert not task_id in self._threads_dict, "Duplicating tasks"
 
+        lock_path = zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK)
         with self._client.Lock(zoo.CONTROL_LOCK_PATH):
             try:
                 parents_list = self._client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_PARENTS))
@@ -105,14 +106,13 @@ class WorkerThread(application.Thread):
                     (zoo.CONTROL_TASK_RECYCLED, time.time()),
                 ):
                 trans.pset(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, node), value)
+            trans.create(lock_path, ephemeral=True) # XXX: Acquired SingleLock()
             zoo.check_transaction("init_task", trans.commit())
-            lock = self._client.SingleLock(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
-            assert lock.try_acquire(), "Fresh job was captured by another worker"
 
         task_thread = _TaskThread(parents_list, job_id, task_id, handler, state, self._controller, self._saver, self._fork)
         self._threads_dict[task_id] = {
             _TASK_THREAD: task_thread,
-            _TASK_LOCK:   lock,
+            _TASK_LOCK:   self._client.SingleLock(lock_path),
         }
         message = ( "Spawned the new job" if state is None else "Respawned the old job" )
         _logger.info("%s: %s; task: %s (parents: %s)", message, job_id, task_id, parents_list)
