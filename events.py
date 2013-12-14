@@ -67,8 +67,9 @@ def cancel(client, job_id):
 
 def is_finished(client, job_id):
     with client.Lock(zoo.CONTROL_LOCK_PATH):
-        return ( set(
-                client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_STATUS))
-                for task_id in client.get_children(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS))
-            ) == set((zoo.TASK_STATUS.FINISHED,)) )
+        statuses_set = set(
+            client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_STATUS))
+            for task_id in client.get_children(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS))
+        )
+        return ( len(statuses_set) == 0 or statuses_set == set((zoo.TASK_STATUS.FINISHED,)) )
 

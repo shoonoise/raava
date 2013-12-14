@@ -63,7 +63,7 @@ def get_handlers(event_root, handlers_dict):
     handler_type = event_root.get_extra()[EXTRA_HANDLER]
     job_id = event_root.get_extra()[EXTRA_JOB_ID]
     selected_set = set()
-    for handler in handlers_dict[handler_type]:
+    for handler in handlers_dict.get(handler_type, set()):
         event_filters_dict = getattr(handler, _FILTER.EVENT, {})
         extra_filters_dict = getattr(handler, _FILTER.EXTRA, {})
         if len(event_filters_dict) + len(extra_filters_dict) == 0:
