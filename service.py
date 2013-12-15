@@ -1,8 +1,3 @@
-#!/usr/bin/env pypy3
-
-
-import sys
-
 from ulib import optconf
 from ulib import validators
 import ulib.validators.common # pylint: disable=W0611
@@ -56,7 +51,7 @@ class Main:
         ).run()
 
     def _init(self):
-        config = optconf.OptionsConfig((
+        parser = optconf.OptionsConfig((
                 OPTION_LOG_FILE,
                 OPTION_LOG_LEVEL,
                 OPTION_ZOO_NODES,
@@ -65,7 +60,6 @@ class Main:
                 OPTION_QUIT_WAIT,
                 OPTION_INTERVAL,
             ) + tuple(self._options_list),
-            sys.argv[1:],
             const.CONFIG_FILE,
         )
         for arg_tuple in (
@@ -77,8 +71,8 @@ class Main:
                 ARG_QUIT_WAIT,
                 ARG_INTERVAL,
             ) + tuple(self._args_list) :
-            config.add_argument(arg_tuple)
-        self._options = config.sync((MAIN_SECTION, self._app_section))
+            parser.add_argument(arg_tuple)
+        self._options = parser.sync((MAIN_SECTION, self._app_section))[0]
 
         application.init_logging(
             self._options[OPTION_LOG_LEVEL],
