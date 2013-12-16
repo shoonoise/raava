@@ -136,7 +136,7 @@ class SingleLock:
         import time # FIXME: Fix this bullshit
         while not self.try_acquire(True):
             print(self._path)
-            time.sleep(0.001)
+            time.sleep(0.1)
 
     def release(self):
         try:
