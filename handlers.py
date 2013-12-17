@@ -18,7 +18,7 @@ _logger = logging.getLogger(const.LOGGER_NAME)
 ##### Public classes #####
 class Handlers:
     def __init__(self, path, names_list):
-        self._path = path
+        self._path = os.path.normpath(path)
         self._names_list = names_list
         self._handlers_dict = {}
         self._errors_dict = {}
@@ -30,7 +30,9 @@ class Handlers:
         handlers_dict = { name: set() for name in self._names_list }
         errors_dict = {}
 
+        _logger.debug("Rules root: %s", self._path)
         for (root_path, _, files_list) in os.walk(self._path):
+            _logger.debug("Scanning for rules: %s", root_path)
             rel_path = root_path.replace(self._path, os.path.basename(self._path))
             for file_name in files_list:
                 if file_name[0] in (".", "_") or not file_name.lower().endswith(".py"):
@@ -52,6 +54,7 @@ class Handlers:
                 for (handler_type, handlers_set) in handlers_dict.items():
                     handler = getattr(module, handler_type, None)
                     if handler is not None:
+                        _logger.debug("Loaded %s handler from %s", handler_type, module)
                         handlers_set.add(handler)
                         continue
         self._handlers_dict = handlers_dict
