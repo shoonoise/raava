@@ -103,7 +103,7 @@ def check_transaction(name, results_list, pairs_list = None):
     for (index, result) in enumerate(results_list):
         if isinstance(result, Exception):
             ok_flag = False
-            if not pairs_list is None:
+            if pairs_list is not None:
                 _logger.error("Failed the part of transaction \"%s\": %s=%s; err=%s",
                     name,
                     pairs_list[index][0], # Node

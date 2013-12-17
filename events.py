@@ -24,7 +24,7 @@ class NotRootError(Exception):
 ##### Public methods #####
 def add(client, event_root, handler_type, parents_list = None):
     assert isinstance(event_root, rules.EventRoot), "Invalid event type"
-    if not parents_list is None:
+    if parents_list is not None:
         assert isinstance(parents_list, (tuple, list))
         for item in parents_list:
             assert len(item) == 2
@@ -81,7 +81,7 @@ def info(client, job_id):
             raise NoJobError
         info_dict = {
             zoo.CONTROL_PARENTS: parents_list,
-            zoo.CONTROL_CANCEL:  ( not client.exists(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_CANCEL)) is None ),
+            zoo.CONTROL_CANCEL:  ( client.exists(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_CANCEL)) is not None ),
         }
         try:
             tasks_list = client.get_children(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS))

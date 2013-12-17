@@ -141,7 +141,7 @@ class CollectorThread(application.Thread):
             trans.delete(zoo.join(zoo.CONTROL_JOBS_PATH, job_id))
             with self._client.Lock(zoo.CONTROL_LOCK_PATH):
                 cancel_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_CANCEL)
-                if not self._client.exists(cancel_path) is None:
+                if self._client.exists(cancel_path) is not None:
                     trans.delete(cancel_path)
                 zoo.check_transaction("remove_control", trans.commit())
             _logger.info("Control removed: %s", job_id)

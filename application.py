@@ -35,7 +35,7 @@ def init_logging(level = logging.DEBUG, log_file_path = None, line_format = None
     stream_handler.setFormatter(formatter)
     _logger.addHandler(stream_handler)
 
-    if not log_file_path is None:
+    if log_file_path is not None:
         file_handler = logging.handlers.WatchedFileHandler(log_file_path)
         file_handler.setLevel(level)
         file_handler.setFormatter(formatter)
@@ -116,7 +116,7 @@ class Application:
             signame = _SIGNAMES_MAP[signum]
             handler = signal_dict[_SIGNAL_HANDLER]
             args_tuple = signal_dict[_SIGNAL_ARGS]
-            if not args_tuple is None:
+            if args_tuple is not None:
                 try:
                     _logger.debug("Processing signal %s --> %s.%s(%s)", _SIGNAMES_MAP[signum], handler.__module__, handler.__name__, args_tuple)
                     handler(*args_tuple)

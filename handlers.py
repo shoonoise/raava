@@ -22,7 +22,7 @@ class Handlers:
         self._names_list = names_list
         self._handlers_dict = {}
         self._errors_dict = {}
-        if not self._path in sys.path:
+        if self._path not in sys.path:
             sys.path.append(self._path)
 
     def load_handlers(self):
@@ -51,7 +51,7 @@ class Handlers:
 
                 for (handler_type, handlers_set) in handlers_dict.items():
                     handler = getattr(module, handler_type, None)
-                    if not handler is None:
+                    if handler is not None:
                         handlers_set.add(handler)
                         continue
         self._handlers_dict = handlers_dict

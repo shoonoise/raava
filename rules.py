@@ -142,7 +142,7 @@ class NotInListComparator(AbstractComparator):
         AbstractComparator.__init__(self, variants_tuple)
 
     def compare(self, value):
-        return ( not value in self._operand )
+        return ( value not in self._operand )
 
 
 class RegexpComparator(AbstractComparator):
@@ -150,7 +150,7 @@ class RegexpComparator(AbstractComparator):
         AbstractComparator.__init__(self, re.compile(regexp))
 
     def compare(self, value):
-        return ( not self._operand.match(value) is None )
+        return ( self._operand.match(value) is not None )
 
 class EqComparator(AbstractComparator):
     def compare(self, value):
