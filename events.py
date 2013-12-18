@@ -65,13 +65,18 @@ def cancel(client, job_id):
     except zoo.NodeExistsError:
         pass
 
-def is_finished(client, job_id):
+def get_finished(client, job_id):
     with client.Lock(zoo.CONTROL_LOCK_PATH):
-        statuses_set = set(
-            client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_STATUS))
+        finished_list = [
+            client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED))
             for task_id in client.get_children(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS))
-        )
-        return ( len(statuses_set) == 0 or statuses_set == set((zoo.TASK_STATUS.FINISHED,)) )
+        ]
+        if len(finished_list) == 0:
+            return 0
+        elif None in finished_list:
+            return None
+        else:
+            return max(finished_list)
 
 def get_info(client, job_id):
     control_job_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id)

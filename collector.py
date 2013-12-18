@@ -15,11 +15,12 @@ _collectors = 0
 
 ##### Public classes #####
 class CollectorThread(application.Thread):
-    def __init__(self, client, interval, delay, recycled_priority):
+    def __init__(self, client, interval, delay, recycled_priority, garbage_lifetime):
         self._client = client
         self._interval = interval
         self._delay = delay
         self._recycled_priority = recycled_priority
+        self._garbage_lifetime = garbage_lifetime
         self._stop_flag = False
 
         global _collectors
@@ -79,14 +80,15 @@ class CollectorThread(application.Thread):
                 break
 
             try:
-                if not events.is_finished(self._client, job_id):
+                finished = events.get_finished(self._client, job_id)
+                if finished is None or finished + self._garbage_lifetime > time.time():
                     continue
-            except zoo.NoNodeError:
+            except events.NoJobError:
                 continue
+
             lock = self._client.SingleLock(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_LOCK))
             if not lock.try_acquire():
                 continue
-
             self._remove_control(lock, job_id)
 
     ###
