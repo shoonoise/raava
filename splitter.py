@@ -52,14 +52,13 @@ class SplitterThread(application.Thread):
         _logger.info("Split job %s to %d tasks", job_id, len(handlers_set))
 
         trans = self._client.transaction()
+        trans.pcreate(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_SPLITTED), time.time())
         trans.create(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS))
 
         for handler in handlers_set:
             task_id = str(uuid.uuid4())
             trans.create(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id))
             for (node, value) in (
-                    (zoo.CONTROL_TASK_ADDED,    input_dict[zoo.INPUT_ADDED]),
-                    (zoo.CONTROL_TASK_SPLITTED, time.time()),
                     (zoo.CONTROL_TASK_CREATED,  None),
                     (zoo.CONTROL_TASK_RECYCLED, None),
                     (zoo.CONTROL_TASK_FINISHED, None),

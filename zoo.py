@@ -18,14 +18,13 @@ RUNNING_PATH = "/running"
 
 INPUT_JOB_ID = "job_id"
 INPUT_EVENT  = "event"
-INPUT_ADDED  = "added"
 
 CONTROL_PARENTS        = "parents"
+CONTROL_ADDED          = "added"
+CONTROL_SPLITTED       = "splitted"
 CONTROL_JOBS           = "jobs"
 CONTROL_JOBS_PATH      = join(CONTROL_PATH, CONTROL_JOBS)
 CONTROL_TASKS          = "tasks"
-CONTROL_TASK_ADDED     = INPUT_ADDED
-CONTROL_TASK_SPLITTED  = "splitted"
 CONTROL_TASK_CREATED   = "created"
 CONTROL_TASK_RECYCLED  = "recycled"
 CONTROL_TASK_FINISHED  = "finished"

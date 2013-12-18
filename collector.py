@@ -131,8 +131,6 @@ class CollectorThread(application.Thread):
             trans.delete(zoo.join(control_job_path, zoo.CONTROL_PARENTS))
             for task_id in self._client.get_children(zoo.join(control_job_path, zoo.CONTROL_TASKS)):
                 for node in (
-                        zoo.CONTROL_TASK_ADDED,
-                        zoo.CONTROL_TASK_SPLITTED,
                         zoo.CONTROL_TASK_CREATED,
                         zoo.CONTROL_TASK_RECYCLED,
                         zoo.CONTROL_TASK_FINISHED,
@@ -140,8 +138,13 @@ class CollectorThread(application.Thread):
                     ):
                     trans.delete(zoo.join(control_job_path, zoo.CONTROL_TASKS, task_id, node))
                 trans.delete(zoo.join(control_job_path, zoo.CONTROL_TASKS, task_id))
-            trans.delete(zoo.join(control_job_path, zoo.CONTROL_TASKS))
-            trans.delete(zoo.join(control_job_path, zoo.CONTROL_LOCK))
+            for node in (
+                    zoo.CONTROL_TASKS,
+                    zoo.CONTROL_ADDED,
+                    zoo.CONTROL_SPLITTED,
+                    zoo.CONTROL_LOCK,
+                ):
+                trans.delete(zoo.join(control_job_path, node))
             trans.delete(zoo.join(control_job_path))
             with self._client.Lock(zoo.CONTROL_LOCK_PATH):
                 cancel_path = zoo.join(control_job_path, zoo.CONTROL_CANCEL)
