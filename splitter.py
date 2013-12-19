@@ -73,8 +73,7 @@ class SplitterThread(application.Thread):
                     zoo.READY_STATE:   None,
                 }))
 
-        with self._client.Lock(zoo.CONTROL_LOCK_PATH):
-            zoo.check_transaction("split_input", trans.commit())
+        zoo.check_transaction("split_input", trans.commit())
         for handler in handlers_set:
             _logger.info("... splitted %s --> %s; handler: %s.%s", job_id, task_id, handler.__module__, handler.__name__)
 
