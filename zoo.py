@@ -122,15 +122,19 @@ class SingleLock:
         self._client = client
         self._path = path
 
-    def try_acquire(self):
+    def try_acquire(self, raise_flag = False):
         try:
             self._client.create(self._path, ephemeral=True)
             return True
+        except NoNodeError:
+            if raise_flag:
+                raise
+            return False
         except NodeExistsError:
             return False
 
-    def acquire(self):
-        while not self.try_acquire():
+    def acquire(self, raise_flag = True):
+        while not self.try_acquire(raise_flag):
             wait = threading.Event()
             def watcher(_) :
                 wait.set()
