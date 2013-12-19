@@ -1,5 +1,6 @@
 import pickle
 import functools
+import threading
 import logging
 
 import kazoo.client
@@ -121,21 +122,20 @@ class SingleLock:
         self._client = client
         self._path = path
 
-    def try_acquire(self, raise_flag = False):
+    def try_acquire(self):
         try:
             self._client.create(self._path, ephemeral=True)
             return True
-        except (NoNodeError, NodeExistsError):
-            if raise_flag:
-                raise
+        except NodeExistsError:
             return False
-        return False
 
     def acquire(self):
-        import time # FIXME: Fix this bullshit
-        while not self.try_acquire(True):
-            print(self._path)
-            time.sleep(0.1)
+        while not self.try_acquire():
+            wait = threading.Event()
+            def watcher(_) :
+                wait.set()
+            if self._client.exists(self._path, watch=watcher) is not None:
+                wait.wait()
 
     def release(self):
         try:
