@@ -17,9 +17,9 @@ _splitters = 0
 
 ##### Public classes #####
 class SplitterThread(application.Thread):
-    def __init__(self, client, handlers, queue_timeout):
+    def __init__(self, client, loader, queue_timeout):
         self._client = client
-        self._handlers = handlers
+        self._loader = loader
         self._queue_timeout = queue_timeout
         self._input_queue = self._client.LockingQueue(zoo.INPUT_PATH)
         self._stop_flag = False
@@ -48,10 +48,12 @@ class SplitterThread(application.Thread):
 
     def _split_input(self, input_dict):
         job_id = input_dict[zoo.INPUT_JOB_ID]
-        handlers_set = rules.get_handlers(input_dict[zoo.INPUT_EVENT], self._handlers.get_handlers())
-        _logger.info("Split job %s to %d tasks", job_id, len(handlers_set))
+        (head, handlers_dict) = self._loader.get_handlers()
+        handlers_set = rules.get_handlers(input_dict[zoo.INPUT_EVENT], handlers_dict)
+        _logger.info("Split job %s to %d tasks (head: %s)", job_id, len(handlers_set), head)
 
         trans = self._client.transaction()
+        trans.pcreate(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_VERSION), head)
         trans.pcreate(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_SPLITTED), time.time())
         trans.create(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS))
 

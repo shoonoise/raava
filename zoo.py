@@ -20,6 +20,7 @@ RUNNING_PATH = "/running"
 INPUT_JOB_ID = "job_id"
 INPUT_EVENT  = "event"
 
+CONTROL_VERSION        = "version"
 CONTROL_PARENTS        = "parents"
 CONTROL_ADDED          = "added"
 CONTROL_SPLITTED       = "splitted"
