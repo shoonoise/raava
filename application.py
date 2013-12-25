@@ -41,7 +41,10 @@ def init_logging(level = logging.DEBUG, log_file_path = None, line_format = None
         file_handler.setFormatter(formatter)
         _logger.addHandler(file_handler)
 
-    warnings.showwarning = _log_warning
+    def log_warning(message, category, filename, lineno, file=None, line=None) : # pylint: disable=W0622
+        _logger.warning("Python warning: %s", warnings.formatwarning(message, category, filename, lineno, line))
+
+    warnings.showwarning = log_warning
 
 
 ##### Public classes #####
@@ -156,9 +159,3 @@ class Application:
     def _quit(self, signum = None, frame = None):
         _logger.info("Quitting...")
         self._stop_flag = True
-
-
-##### Private methods #####
-def _log_warning(message, category, filename, lineno, file=None, line=None) : # pylint: disable=W0622
-    _logger.warning("Python warning: %s", warnings.formatwarning(message, category, filename, lineno, line))
-
