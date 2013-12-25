@@ -17,7 +17,8 @@ class EXTRA:
 
 
 ##### Private constants #####
-_BUILTIN_ID = "_raava_builtin"
+_BUILTIN_ID    = "_raava_builtin"
+_DISABLE_HANDLER = "_disable_handler"
 
 class _FILTER:
     EVENT = "event_filters_dict"
@@ -61,11 +62,19 @@ def _make_matcher(filters_type):
 match_event = _make_matcher(_FILTER.EVENT)
 match_extra = _make_matcher(_FILTER.EXTRA)
 
+def disable_handler(handler):
+    setattr(handler, _DISABLE_HANDLER, None)
+    return handler
+
+###
 def get_handlers(event_root, handlers_dict):
     handler_type = event_root.get_extra()[EXTRA.HANDLER]
     job_id = event_root.get_extra()[EXTRA.JOB_ID]
     selected_set = set()
     for handler in handlers_dict.get(handler_type, set()):
+        if hasattr(handler, _DISABLE_HANDLER):
+            _logger.debug("Passed disabled handler: %s.%s", handler.__module__, handler.__name__)
+            continue
         event_filters_dict = getattr(handler, _FILTER.EVENT, {})
         extra_filters_dict = getattr(handler, _FILTER.EXTRA, {})
         if len(event_filters_dict) + len(extra_filters_dict) == 0:
