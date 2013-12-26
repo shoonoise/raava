@@ -2,8 +2,6 @@ import threading
 import signal
 import time
 import logging
-import logging.handlers
-import warnings
 
 from . import const
 
@@ -23,13 +21,10 @@ _SIGNAMES_MAP = {
 _logger = logging.getLogger(const.LOGGER_NAME)
 
 
-
-
 ##### Public classes #####
 class Thread(threading.Thread):
     def alive_children(self):
         return 0
-
 
 class Application:
     def __init__(self, workers, die_after, quit_wait, interval):
@@ -137,3 +132,4 @@ class Application:
     def _quit(self, signum = None, frame = None):
         _logger.info("Quitting...")
         self._stop_flag = True
+
