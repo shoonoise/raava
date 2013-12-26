@@ -94,13 +94,16 @@ def get_info(client, job_id):
             raise NoJobError
 
         try:
+            version  = client.pget(zoo.join(control_job_path, zoo.CONTROL_VERSION))
             splitted = client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_SPLITTED))
             tasks_list = client.get_children(zoo.join(control_job_path, zoo.CONTROL_TASKS))
         except zoo.NoNodeError:
+            version = None
             splitted = None
             tasks_list = []
 
         info_dict = {
+            zoo.CONTROL_VERSION:  version,
             zoo.CONTROL_PARENTS:  parents_list,
             zoo.CONTROL_TASKS:    {},
             zoo.CONTROL_ADDED:    client.pget(zoo.join(control_job_path, zoo.CONTROL_ADDED)),
@@ -115,6 +118,7 @@ def get_info(client, job_id):
                     zoo.CONTROL_TASK_RECYCLED,
                     zoo.CONTROL_TASK_FINISHED,
                     zoo.CONTROL_TASK_STATUS,
+                    zoo.CONTROL_TASK_STACK,
                 )
             }
         return info_dict

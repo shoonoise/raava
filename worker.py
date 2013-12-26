@@ -1,6 +1,8 @@
 import _continuation
 import threading
 import pickle
+import inspect
+import traceback
 import time
 import logging
 
@@ -10,13 +12,15 @@ from . import events
 from . import zoo
 
 
+##### Public constants #####
+class _SWITCH_REASON:
+    CHECKPOINT = "checkpoint"
+    FORK       = "fork"
+
+
 ##### Private constants #####
 _TASK_THREAD = "thread"
 _TASK_LOCK   = "lock"
-
-class _REASON:
-    CHECKPOINT = "checkpoint"
-    FORK       = "fork"
 
 
 ##### Private objects #####
@@ -130,20 +134,20 @@ class WorkerThread(application.Thread):
         with self._client_lock:
             return self._controller_unsafe(task)
 
-    def _saver(self, task, state):
+    def _saver(self, *args_tuple, **kwargs_dict):
         with self._client_lock:
-            return self._saver_unsafe(task, state)
+            return self._saver_unsafe(*args_tuple, **kwargs_dict)
 
-    def _fork(self, task, event_root, handler_type):
+    def _fork(self, *args_tuple, **kwargs_dict):
         with self._client_lock:
-            self._fork_unsafe(task, event_root, handler_type)
+            self._fork_unsafe(*args_tuple, **kwargs_dict)
 
     def _controller_unsafe(self, task):
         parents_list = task.get_parents()
         root_job_id = ( task.get_job_id() if len(parents_list) == 0 else parents_list[0][0] )
         return ( self._client.exists(zoo.join(zoo.CONTROL_JOBS_PATH, root_job_id, zoo.CONTROL_CANCEL)) is None )
 
-    def _saver_unsafe(self, task, state):
+    def _saver_unsafe(self, task, stack_list, state):
         job_id = task.get_job_id()
         task_id = task.get_task_id()
         trans = self._client.transaction()
@@ -152,12 +156,14 @@ class WorkerThread(application.Thread):
                 zoo.RUNNING_HANDLER: None,
                 zoo.RUNNING_STATE:   state,
             })
+        control_task_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id)
         if state is None:
-            trans.pset(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED), time.time())
+            trans.pset(zoo.join(control_task_path, zoo.CONTROL_TASK_FINISHED), time.time())
             status = zoo.TASK_STATUS.FINISHED
         else:
             status = zoo.TASK_STATUS.READY
-        trans.pset(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_STATUS), status)
+        trans.pset(zoo.join(control_task_path, zoo.CONTROL_TASK_STATUS), status)
+        trans.pset(zoo.join(control_task_path, zoo.CONTROL_TASK_STACK),  stack_list)
         try:
             zoo.check_transaction("saver", trans.commit())
         except zoo.TransactionError:
@@ -198,26 +204,27 @@ class _TaskThread(threading.Thread):
             self._task.init_cont()
         except Exception:
             _logger.exception("Cont-init error")
-            self._saver(self._task, None)
+            self._saver(self._task, None, None)
 
         while not self._stop_flag and self._task.is_pending():
             if not self._controller(self._task):
-                self._saver(self._task, None)
+                self._saver(self._task, None, None)
                 _logger.info("Task is cancelled")
                 return
 
-            (do_tuple, err, state) = self._task.step()
+            (ret_tuple, err, state) = self._task.step()
+            (reason, stack_list, data) = ( ret_tuple if ret_tuple is not None else (None,)*3 )
+            if reason == _SWITCH_REASON.FORK:
+                self._fork(self._task, *data)
             if err is not None:
                 _logger.error("Unhandled step() error: %s", err)
-                self._saver(self._task, None)
+                self._saver(self._task, None, None)
                 return
-            if do_tuple is not None and do_tuple[0] == _REASON.FORK:
-                self._fork(self._task, *do_tuple[1])
 
-            self._saver(self._task, state)
+            self._saver(self._task, stack_list, state)
 
         if not self._task.is_pending():
-            self._saver(self._task, None)
+            self._saver(self._task, None, None)
             _logger.info("Task is finished")
         else:
             _logger.info("Task is stopped")
@@ -247,10 +254,10 @@ class _Task:
     ###
 
     def checkpoint(self, data = None):
-        self._cont.switch((_REASON.CHECKPOINT, data))
+        self._switch(_SWITCH_REASON.CHECKPOINT, data)
 
     def fork(self, event_root, handler_type):
-        self._cont.switch((_REASON.FORK, (event_root, handler_type)))
+        self._switch(_SWITCH_REASON.FORK, (event_root, handler_type))
 
     ###
 
@@ -284,4 +291,11 @@ class _Task:
         except Exception as err:
             _logger.exception("Step error")
             return (None, err, None)
+
+
+    ### Private ###
+
+    def _switch(self, reason, data):
+        stack_list = traceback.extract_stack(inspect.currentframe())
+        self._cont.switch((reason, stack_list, data))
 

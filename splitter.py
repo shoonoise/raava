@@ -65,6 +65,7 @@ class SplitterThread(application.Thread):
                     (zoo.CONTROL_TASK_RECYCLED, None),
                     (zoo.CONTROL_TASK_FINISHED, None),
                     (zoo.CONTROL_TASK_STATUS,   zoo.TASK_STATUS.NEW),
+                    (zoo.CONTROL_TASK_STACK,    None),
                 ):
                 trans.pcreate(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, node), value)
 
