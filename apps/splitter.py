@@ -5,9 +5,15 @@ from .. import zoo
 
 ##### Public classes #####
 class Splitter(application.Application):
-    def spawn(self, hosts_list, loader, queue_timeout): # pylint: disable=W0221
-        client = zoo.connect(hosts_list)
-        thread = splitter.SplitterThread(client, loader, queue_timeout)
+    def __init__(self, host_list, loader, queue_timeout, **kwargs):
+        self._host_list = host_list
+        self._loader = loader
+        self._queue_timeout = queue_timeout
+        application.Application.__init__(self, **kwargs)
+
+    def spawn(self):
+        client = zoo.connect(self._host_list)
+        thread = splitter.SplitterThread(client, self._loader, self._queue_timeout)
         return (thread, client)
 
     def cleanup(self, client):

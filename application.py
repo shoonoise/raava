@@ -23,28 +23,6 @@ _SIGNAMES_MAP = {
 _logger = logging.getLogger(const.LOGGER_NAME)
 
 
-##### Public methods #####
-def init_logging(level = logging.DEBUG, log_file_path = None, line_format = None):
-    _logger.setLevel(level)
-    if line_format is None:
-        line_format = "%(asctime)s %(process)d %(threadName)s - %(levelname)s -- %(message)s"
-    formatter = logging.Formatter(line_format)
-
-    stream_handler = logging.StreamHandler()
-    stream_handler.setLevel(level)
-    stream_handler.setFormatter(formatter)
-    _logger.addHandler(stream_handler)
-
-    if log_file_path is not None:
-        file_handler = logging.handlers.WatchedFileHandler(log_file_path)
-        file_handler.setLevel(level)
-        file_handler.setFormatter(formatter)
-        _logger.addHandler(file_handler)
-
-    def log_warning(message, category, filename, lineno, file=None, line=None) : # pylint: disable=W0622
-        _logger.warning("Python warning: %s", warnings.formatwarning(message, category, filename, lineno, line))
-
-    warnings.showwarning = log_warning
 
 
 ##### Public classes #####
@@ -54,13 +32,13 @@ class Thread(threading.Thread):
 
 
 class Application:
-    def __init__(self, workers, die_after, quit_wait, interval, worker_args_tuple = None, worker_kwargs_dict = None):
+    def __init__(self, workers, die_after, quit_wait, interval):
         self._workers = workers
         self._die_after = die_after
         self._quit_wait = quit_wait
         self._interval = interval
-        self._worker_args_list = ( worker_args_tuple or () )
-        self._worker_kwargs_dict = ( worker_kwargs_dict or {} )
+
+        _logger.debug('creating application. {}'.format(vars(self)), extra=vars(self))
 
         self._stop_flag = False
         self._signal_handlers_dict = {}
@@ -75,7 +53,7 @@ class Application:
 
     ### Public ###
 
-    def spawn(self, *args_tuple, **kwargs_dict):
+    def spawn(self):
         raise NotImplementedError
 
     def cleanup(self, thread):
@@ -150,7 +128,7 @@ class Application:
             return
 
         while len(self._threads_dict) < self._workers:
-            (thread, data) = self.spawn(*self._worker_args_list, **self._worker_kwargs_dict)
+            (thread, data) = self.spawn()
             thread.start()
             _logger.info("Spawned the new worker: %s", thread.name)
             self._threads_dict[thread] = data
