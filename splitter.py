@@ -1,6 +1,5 @@
 import pickle
 import uuid
-import copy
 import time
 import logging
 
@@ -81,7 +80,7 @@ class SplitterThread(application.Thread):
             _logger.info("... splitted %s --> %s; handler: %s.%s", job_id, task_id, handler.__module__, handler.__name__)
 
     def _make_handler_pickle(self, handler, event_root):
-        event_root = copy.copy(event_root)
+        event_root = event_root.copy()
         def new_handler():
             return handler(event_root)
         return pickle.dumps(new_handler)

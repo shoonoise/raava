@@ -120,7 +120,7 @@ class EventRoot(dict):
         dict.__init__(self, *args_tuple, **kwargs_dict)
 
     def copy(self):
-        return copy.copy(self)
+        return copy.deepcopy(self)
 
     def get_extra(self):
         return self._extra_dict
