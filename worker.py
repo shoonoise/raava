@@ -41,9 +41,10 @@ def make_task_builtin(method):
 
 ##### Public classes #####
 class WorkerThread(application.Thread):
-    def __init__(self, client, queue_timeout):
+    def __init__(self, client, queue_timeout, rules_path):
         self._client = client
         self._queue_timeout = queue_timeout
+        self._rules_path = rules_path
         self._ready_queue = self._client.LockingQueue(zoo.READY_PATH)
         self._client_lock = threading.Lock()
         self._threads_dict = {}
@@ -66,7 +67,7 @@ class WorkerThread(application.Thread):
                 None
                 for task_dict in self._threads_dict.values()
                 if task_dict[_TASK_THREAD].is_alive()
-        ])
+            ])
         self._cleanup()
         return count
 
@@ -163,7 +164,13 @@ class WorkerThread(application.Thread):
         else:
             status = zoo.TASK_STATUS.READY
         trans.pset(zoo.join(control_task_path, zoo.CONTROL_TASK_STATUS), status)
-        trans.pset(zoo.join(control_task_path, zoo.CONTROL_TASK_STACK),  stack_list)
+        trans.pset(zoo.join(control_task_path, zoo.CONTROL_TASK_STACK), (
+            stack_list and [
+                item
+                for item in stack_list
+                if item[0].startswith(self._rules_path)
+            ] ))
+
         try:
             zoo.check_transaction("saver", trans.commit())
         except zoo.TransactionError:
