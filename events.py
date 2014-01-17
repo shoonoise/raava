@@ -65,6 +65,9 @@ def cancel(client, job_id):
     except zoo.NodeExistsError:
         pass
 
+def get_jobs(client):
+    return client.get_children(zoo.CONTROL_JOBS_PATH)
+
 def get_finished(client, job_id):
     with client.Lock(zoo.CONTROL_LOCK_PATH):
         if client.exists(zoo.join(zoo.CONTROL_JOBS_PATH, job_id)) is None:

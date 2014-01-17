@@ -119,6 +119,21 @@ def check_transaction(name, results_list, pairs_list = None):
 
 
 ##### Public classes #####
+class Connect:
+    def __init__(self, *args_tuple, **kwargs_dict):
+        self._args_tuple = args_tuple
+        self._kwargs_dict = kwargs_dict
+        self._client = None
+
+    def __enter__(self):
+        self._client = connect(*self._args_tuple, **self._kwargs_dict)
+        return self._client
+
+    def __exit__(self, type, value, traceback): # pylint: disable=W0622
+        self._client.stop()
+
+
+###
 class SingleLock:
     def __init__(self, client, path):
         self._client = client
