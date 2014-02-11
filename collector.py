@@ -15,17 +15,16 @@ _collectors = 0
 
 ##### Public classes #####
 class CollectorThread(application.Thread):
-    def __init__(self, client, interval, delay, recycled_priority, garbage_lifetime):
-        self._client = client
-        self._interval = interval
+    def __init__(self, poll_interval, delay, recycled_priority, garbage_lifetime, **kwargs):
+        global _collectors
+        _collectors += 1
+        application.Thread.__init__(self, name="Collector::{collectors:03d}".format(collectors=_collectors), **kwargs)
+
+        self._interval = poll_interval
         self._delay = delay
         self._recycled_priority = recycled_priority
         self._garbage_lifetime = garbage_lifetime
         self._stop_flag = False
-
-        global _collectors
-        _collectors += 1
-        application.Thread.__init__(self, name="Collector::{collectors:03d}".format(collectors=_collectors))
 
 
     ### Public ###

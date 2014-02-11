@@ -4,6 +4,7 @@ import time
 import logging
 
 from . import const
+from . import zoo
 
 
 ##### Private constants #####
@@ -23,15 +24,24 @@ _logger = logging.getLogger(const.LOGGER_NAME)
 
 ##### Public classes #####
 class Thread(threading.Thread):
+    def __init__(self, zoo_nodes, **kwargs):
+        threading.Thread.__init__(self, **kwargs)
+        self._client = zoo.connect(zoo_nodes)
+
     def alive_children(self):
         return 0
+    
+    def cleanup(self):
+        self._client.stop()
 
 class Application:
-    def __init__(self, workers, die_after, quit_wait, interval):
+    def __init__(self, thread_class, workers, die_after, quit_wait, interval, **kwargs):
+        self._thread_class = thread_class
         self._workers = workers
         self._die_after = die_after
         self._quit_wait = quit_wait
         self._interval = interval
+        self._thread_kwargs = kwargs
 
         _logger.debug('creating application. {}'.format(vars(self)), extra=vars(self))
 
@@ -42,16 +52,13 @@ class Application:
                 (signal.SIGINT,  self._quit),
             ):
             self.set_signal_handler(signum, handler)
-        self._threads_dict = {}
+        self._threads = []
         self._respawns = 0
 
 
     ### Public ###
 
     def spawn(self):
-        raise NotImplementedError
-
-    def cleanup(self, thread):
         raise NotImplementedError
 
     def set_signal_handler(self, signum, handler):
@@ -70,12 +77,12 @@ class Application:
             self._respawn_threads()
             time.sleep(self._interval)
 
-        for thread in self._threads_dict:
+        for thread in self._threads:
             thread.stop()
         _logger.debug("Waiting for stop of the workers...")
         for _ in range(self._quit_wait):
             self._cleanup_threads(False)
-            if len(self._threads_dict) == 0:
+            if len(self._threads) == 0:
                 break
             time.sleep(1)
         _logger.debug("Bye-bye ^_^")
@@ -103,13 +110,13 @@ class Application:
                     self._signal_handlers_dict[signum][_SIGNAL_ARGS] = None
 
     def _cleanup_threads(self, pass_children_flag = True):
-        for thread in tuple(self._threads_dict):
+        for thread in self._threads[:]:
             if not thread.is_alive():
                 alive_children = thread.alive_children()
                 if alive_children == 0 or pass_children_flag:
-                    data = self._threads_dict.pop(thread)
+                    self._threads.remove(thread)
                     try:
-                        self.cleanup(data)
+                        thread.cleanup()
                     except Exception:
                         _logger.exception("Cleanup error")
                     _logger.info("Dead worker is removed: %s", thread.name)
@@ -117,16 +124,16 @@ class Application:
                     _logger.info("Dead worker %s has %d unfinished children", thread.name, alive_children)
 
     def _respawn_threads(self):
-        if self._respawns + len(self._threads_dict) >= self._die_after:
+        if self._respawns + len(self._threads) >= self._die_after:
             _logger.warn("Reached the respawn maximum")
             self._quit()
             return
 
-        while len(self._threads_dict) < self._workers:
-            (thread, data) = self.spawn()
+        while len(self._threads) < self._workers:
+            thread = self._thread_class(**self._thread_kwargs)
             thread.start()
             _logger.info("Spawned the new worker: %s", thread.name)
-            self._threads_dict[thread] = data
+            self._threads.append(thread)
             self._respawns += 1
 
     def _quit(self, signum = None, frame = None):

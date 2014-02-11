@@ -16,17 +16,15 @@ _splitters = 0
 
 ##### Public classes #####
 class SplitterThread(application.Thread):
-    def __init__(self, client, loader, queue_timeout):
-        self._client = client
+    def __init__(self, loader, queue_timeout, **kwargs):
+        global _splitters
+        _splitters += 1
+        application.Thread.__init__(self, name="Splitter::{splitters:03d}".format(splitters=_splitters), **kwargs)
+
         self._loader = loader
         self._queue_timeout = queue_timeout
         self._input_queue = self._client.LockingQueue(zoo.INPUT_PATH)
         self._stop_flag = False
-
-        global _splitters
-        _splitters += 1
-        application.Thread.__init__(self, name="Splitter::{splitters:03d}".format(splitters=_splitters))
-
 
 
     ### Public ###
