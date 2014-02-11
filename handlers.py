@@ -57,13 +57,13 @@ class Loader:
         _logger.debug("Loading rules from head: %s; root: %s", head, self._path)
         handlers_dict = { name: set() for name in self._mains_list }
         for (root_path, _, files_list) in os.walk(head_path):
-            _logger.debug("Scanning for rules: %s", root_path)
             rel_path = root_path.replace(head_path, os.path.basename(head_path))
             for file_name in files_list:
                 if file_name[0] in (".", "_") or not file_name.lower().endswith(".py"):
                     continue
 
                 file_path = os.path.join(rel_path, file_name)
+                _logger.debug("Scanning for rules: %s", file_path)
                 module_name = file_path[:file_path.lower().index(".py")].replace(os.path.sep, ".")
                 try:
                     module = importlib.import_module(module_name)
