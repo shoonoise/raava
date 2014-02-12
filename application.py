@@ -58,9 +58,6 @@ class Application:
 
     ### Public ###
 
-    def spawn(self):
-        raise NotImplementedError
-
     def set_signal_handler(self, signum, handler):
         self._signal_handlers_dict[signum] = {
                 _SIGNAL_HANDLER: handler,
