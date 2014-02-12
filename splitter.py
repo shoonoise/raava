@@ -16,10 +16,10 @@ _splitters = 0
 
 ##### Public classes #####
 class SplitterThread(application.Thread):
-    def __init__(self, loader, queue_timeout, **kwargs):
+    def __init__(self, loader, queue_timeout, **kwargs_dict):
         global _splitters
         _splitters += 1
-        application.Thread.__init__(self, name="Splitter::{splitters:03d}".format(splitters=_splitters), **kwargs)
+        application.Thread.__init__(self, name="Splitter::{splitters:03d}".format(splitters=_splitters), **kwargs_dict)
 
         self._loader = loader
         self._queue_timeout = queue_timeout

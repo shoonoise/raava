@@ -24,24 +24,24 @@ _logger = logging.getLogger(const.LOGGER_NAME)
 
 ##### Public classes #####
 class Thread(threading.Thread):
-    def __init__(self, zoo_nodes, **kwargs):
-        threading.Thread.__init__(self, **kwargs)
-        self._client = zoo.connect(zoo_nodes)
+    def __init__(self, nodes_list, **kwargs_dict):
+        threading.Thread.__init__(self, **kwargs_dict)
+        self._client = zoo.connect(nodes_list)
 
     def alive_children(self):
         return 0
-    
+
     def cleanup(self):
         self._client.stop()
 
 class Application:
-    def __init__(self, thread_class, workers, die_after, quit_wait, interval, **kwargs):
+    def __init__(self, thread_class, workers, die_after, quit_wait, interval, **kwargs_dict):
         self._thread_class = thread_class
         self._workers = workers
         self._die_after = die_after
         self._quit_wait = quit_wait
         self._interval = interval
-        self._thread_kwargs = kwargs
+        self._thread_kwargs_dict = kwargs_dict
 
         _logger.debug('creating application. {}'.format(vars(self)), extra=vars(self))
 
@@ -127,7 +127,7 @@ class Application:
             return
 
         while len(self._threads) < self._workers:
-            thread = self._thread_class(**self._thread_kwargs)
+            thread = self._thread_class(**self._thread_kwargs_dict)
             thread.start()
             _logger.info("Spawned the new worker: %s", thread.name)
             self._threads.append(thread)

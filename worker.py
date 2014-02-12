@@ -41,10 +41,10 @@ def make_task_builtin(method):
 
 ##### Public classes #####
 class WorkerThread(application.Thread):
-    def __init__(self, queue_timeout, rules_path, **kwargs):
+    def __init__(self, queue_timeout, rules_path, **kwargs_dict):
         global _workers
         _workers += 1
-        application.Thread.__init__(self, name="Worker::{workers:03d}".format(workers=_workers), **kwargs)
+        application.Thread.__init__(self, name="Worker::{workers:03d}".format(workers=_workers), **kwargs_dict)
 
         self._queue_timeout = queue_timeout
         self._rules_path = rules_path

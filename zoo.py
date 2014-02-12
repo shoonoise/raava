@@ -62,8 +62,8 @@ class TransactionError(KazooException):
 
 
 ##### Public methods #####
-def connect(hosts_list):
-    hosts = ",".join(hosts_list)
+def connect(nodes_list):
+    hosts = ",".join(nodes_list)
     client = Client(hosts=hosts)
     client.start()
     _logger.info("Started zookeeper client on hosts: %s", hosts)
