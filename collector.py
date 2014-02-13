@@ -146,11 +146,11 @@ class CollectorThread(application.Thread):
                     zoo.CONTROL_LOCK,
                 ):
                 trans.delete(zoo.join(control_job_path, node))
-            trans.delete(zoo.join(control_job_path))
             with self._client.Lock(zoo.CONTROL_LOCK_PATH):
                 cancel_path = zoo.join(control_job_path, zoo.CONTROL_CANCEL)
                 if self._client.exists(cancel_path) is not None:
                     trans.delete(cancel_path)
+                trans.delete(zoo.join(control_job_path))
                 zoo.check_transaction("remove_control", trans.commit())
             _logger.info("Control removed: %s", job_id)
         except (zoo.NoNodeError, zoo.TransactionError):
