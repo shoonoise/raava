@@ -47,7 +47,7 @@ class CollectorThread(application.Thread):
             if self._stop_flag:
                 break
 
-            task_lock_path = zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK)
+            task_lock_path = zoo.join(zoo.RUNNING_PATH, task_id, zoo.LOCK)
             try:
                 # XXX: There is no need to control lock
                 running_dict = self._client.pget(zoo.join(zoo.RUNNING_PATH, task_id))
@@ -85,7 +85,7 @@ class CollectorThread(application.Thread):
             except events.NoJobError:
                 continue
 
-            lock = self._client.SingleLock(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_LOCK))
+            lock = self._client.SingleLock(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.LOCK))
             if not lock.try_acquire():
                 continue
             self._remove_control(lock, job_id)
@@ -96,7 +96,7 @@ class CollectorThread(application.Thread):
         running_dict = self._client.pget(zoo.join(zoo.RUNNING_PATH, task_id))
         job_id = running_dict[zoo.RUNNING_JOB_ID]
         trans = self._client.transaction()
-        trans.delete(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
+        trans.delete(zoo.join(zoo.RUNNING_PATH, task_id, zoo.LOCK))
         trans.delete(zoo.join(zoo.RUNNING_PATH, task_id))
         trans.lq_put(zoo.READY_PATH, pickle.dumps({
                 zoo.READY_JOB_ID:  job_id,
@@ -113,7 +113,7 @@ class CollectorThread(application.Thread):
 
     def _remove_running(self, lock, task_id):
         trans = self._client.transaction()
-        trans.delete(zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK))
+        trans.delete(zoo.join(zoo.RUNNING_PATH, task_id, zoo.LOCK))
         trans.delete(zoo.join(zoo.RUNNING_PATH, task_id))
         try:
             zoo.check_transaction("remove_running", trans.commit())
@@ -143,7 +143,7 @@ class CollectorThread(application.Thread):
                     zoo.CONTROL_TASKS,
                     zoo.CONTROL_ADDED,
                     zoo.CONTROL_SPLITTED,
-                    zoo.CONTROL_LOCK,
+                    zoo.LOCK,
                 ):
                 trans.delete(zoo.join(control_job_path, node))
             with self._client.Lock(zoo.CONTROL_LOCK_PATH):

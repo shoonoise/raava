@@ -89,7 +89,7 @@ class WorkerThread(application.Thread):
         handler = ( ready_dict[zoo.READY_HANDLER] if state is None else None )
         assert task_id not in self._threads_dict, "Duplicating tasks"
 
-        lock_path = zoo.join(zoo.RUNNING_PATH, task_id, zoo.RUNNING_LOCK)
+        lock_path = zoo.join(zoo.RUNNING_PATH, task_id, zoo.LOCK)
         try:
             parents_list = self._client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_PARENTS))
             created = self._client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_CREATED))

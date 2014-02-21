@@ -20,6 +20,8 @@ RUNNING_PATH = "/running"
 INPUT_JOB_ID = "job_id"
 INPUT_EVENT  = "event"
 
+LOCK = "lock"
+
 CONTROL_VERSION        = "version"
 CONTROL_PARENTS        = "parents"
 CONTROL_ADDED          = "added"
@@ -33,8 +35,7 @@ CONTROL_TASK_FINISHED  = "finished"
 CONTROL_TASK_STATUS    = "status"
 CONTROL_TASK_STACK     = "stack"
 CONTROL_CANCEL         = "cancel"
-CONTROL_LOCK           = "lock"
-CONTROL_LOCK_PATH      = join(CONTROL_PATH, CONTROL_LOCK)
+CONTROL_LOCK_PATH      = join(CONTROL_PATH, LOCK)
 
 READY_JOB_ID   = INPUT_JOB_ID
 READY_TASK_ID  = "task_id"
@@ -44,7 +45,6 @@ READY_STATE    = "state"
 RUNNING_JOB_ID  = READY_JOB_ID
 RUNNING_HANDLER = READY_HANDLER
 RUNNING_STATE   = READY_STATE
-RUNNING_LOCK    = "lock"
 
 class TASK_STATUS:
     NEW      = "new"
