@@ -2,6 +2,8 @@ import sys
 import os
 import threading
 import importlib
+import importlib.abc
+import inspect
 import logging
 
 from . import const
@@ -23,6 +25,12 @@ def setup_path(path):
     assert os.access(path, os.F_OK)
     sys.path.append(path)
     _logger.debug("Rules root: %s", path)
+
+def setup_import_alias(alias, path):
+    _logger.debug("Installed import alias \"%s\" for \"%s/*\"", alias, path)
+    assert not isinstance(sys.modules, _SysModules), "setup_import_alias() can be called only once"
+    sys.modules = _SysModules(alias, path, sys.modules)
+    sys.meta_path = [_AliasImporter(alias, path)] + sys.meta_path
 
 
 ##### Public classes #####
@@ -82,4 +90,48 @@ class Loader:
             _HEAD:     head,
             _HANDLERS: handlers_dict,
         }
+
+
+##### Private methods #####
+def _get_aliased_module(fullname, path):
+    path = os.path.normpath(path) + "/"
+    for item in reversed(inspect.stack()):
+        module = inspect.getmodule(item[0])
+        if module is not None and module.__file__.startswith(path):
+            root = module.__name__.split(".")[0]
+            return ".".join([root] + fullname.split(".")[1:])
+    raise AssertionError("_get_aliased_module{} can't find a valid caller in the stack".format((fullname, path)))
+
+
+##### Private classes #####
+class _SysModules(dict):
+    def __init__(self, alias, path, old):
+        self._alias = alias
+        self._path = path
+        dict.__init__(self, old)
+
+    def __getitem__(self, fullname):
+        if fullname.split(".")[0] == self._alias:
+            fullname = _get_aliased_module(fullname, self._path)
+        return dict.__getitem__(self, fullname)
+
+class _AliasImporter(importlib.abc.Finder, importlib.abc.Loader):
+    def __init__(self, alias, path):
+        self._alias = alias
+        self._path = path
+
+    def find_module(self, fullname, path = None):
+        if fullname.split(".")[0] == self._alias:
+            return self
+        return None
+
+    def load_module(self, fullname):
+        real = _get_aliased_module(fullname, self._path)
+        if real in sys.modules:
+            return sys.modules[real]
+        _logger.debug("Importing \"%s\" as a local alias for \"%s\"...", fullname, real)
+        return importlib.import_module(real)
+
+    def module_repr(self, module): # For Python >= 3.3
+        return "<module '{}' (root-aliased:{})>".format(module.__name__, self._alias)
 
