@@ -32,9 +32,11 @@ def add(client, event_root, handler_type, parents_list = None):
         parents_list = []
 
     job_id = str(uuid.uuid4())
+    job_number = client.IncrementalCounter(zoo.JOBS_COUNTER_PATH).increment()
     event_root = event_root.copy()
     event_root.get_extra()[rules.EXTRA.HANDLER] = handler_type
     event_root.get_extra()[rules.EXTRA.JOB_ID] = job_id
+    event_root.get_extra()[rules.EXTRA.COUNTER] = job_number
 
     input_dict = {
         zoo.INPUT_JOB_ID: job_id,
@@ -50,7 +52,7 @@ def add(client, event_root, handler_type, parents_list = None):
     with client.Lock(zoo.CONTROL_LOCK_PATH):
         zoo.check_transaction("add_event", trans.commit())
 
-    _logger.info("Registered job %s", job_id)
+    _logger.info("Registered job %s with number %d", job_id, job_number)
     return job_id
 
 def cancel(client, job_id):

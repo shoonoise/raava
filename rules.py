@@ -13,6 +13,7 @@ _logger = logging.getLogger(const.LOGGER_NAME)
 class EXTRA:
     HANDLER = "handler"
     JOB_ID  = "job_id"
+    COUNTER = "counter"
 
 
 ##### Private constants #####

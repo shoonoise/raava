@@ -16,6 +16,7 @@ INPUT_PATH   = "/input"
 CONTROL_PATH = "/control"
 READY_PATH   = "/ready"
 RUNNING_PATH = "/running"
+CORE_PATH    = "/core"
 
 INPUT_JOB_ID = "job_id"
 INPUT_EVENT  = "event"
@@ -46,6 +47,9 @@ RUNNING_JOB_ID  = READY_JOB_ID
 RUNNING_HANDLER = READY_HANDLER
 RUNNING_STATE   = READY_STATE
 
+JOBS_COUNTER = "jobs_counter"
+JOBS_COUNTER_PATH = join(CORE_PATH, JOBS_COUNTER)
+
 class TASK_STATUS:
     NEW      = "new"
     READY    = "ready"
@@ -70,7 +74,7 @@ def connect(nodes_list):
     return client
 
 def init(client, fatal_flag = False):
-    for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_JOBS_PATH):
+    for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_JOBS_PATH, JOBS_COUNTER_PATH):
         try:
             client.create(path, makepath=True)
             _logger.info("Created zoo path: %s", path)
@@ -86,7 +90,7 @@ def init(client, fatal_flag = False):
     client.Lock(CONTROL_LOCK_PATH)._ensure_path() # pylint: disable=W0212
 
 def drop(client, fatal_flag = False):
-    for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_PATH):
+    for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_PATH, CORE_PATH):
         try:
             client.delete(path, recursive=True)
             _logger.info("Removed zoo path: %s", path)
@@ -170,9 +174,24 @@ class SingleLock:
     def __exit__(self, exc_type, exc_value, traceback):
         self.release()
 
+class IncrementalCounter:
+    def __init__(self, client, path):
+        self._client = client
+        self._path = path
+
+    def increment(self):
+        with self._client.Lock(join(self._path, LOCK)):
+            try:
+                value = self._client.pget(self._path)
+            except (NoNodeError, EOFError):
+                value = 0
+            self._client.pset(self._path, value + 1)
+        return value
+
 class Client(kazoo.client.KazooClient): # pylint: disable=R0904
     def __init__(self, *args_tuple, **kwargs_dict):
         self.SingleLock = functools.partial(SingleLock, self)
+        self.IncrementalCounter = functools.partial(IncrementalCounter, self)
         kazoo.client.KazooClient.__init__(self, *args_tuple, **kwargs_dict)
 
     def pget(self, path):
