@@ -34,9 +34,9 @@ def _make_matcher(filters_type):
             setattr(handler, filters_type, filters)
             for (key, comparator) in tuple(filters.items()):
                 if not isinstance(comparator, AbstractComparator):
-                    comparator = EqComparator(comparator)
+                    comparator = eq_comparator(comparator)
                     filters[key] = comparator
-                comparator.set_handler(handler)
+                #comparator.set_handler(handler)
             return handler
         return make_handler
     return matcher
@@ -113,10 +113,6 @@ class EventRoot(dict):
 class AbstractComparator:
     def __init__(self, operand):
         self._operand = operand
-        self._handler = None
-
-    def set_handler(self, handler):
-        self._handler = handler
 
     def get_operand(self):
         return self._operand
@@ -124,7 +120,8 @@ class AbstractComparator:
     def compare(self, value):
         raise NotImplementedError
 
-class EqComparator(AbstractComparator): # Default comparsion method
+# Default comparsion method
+class eq_comparator(AbstractComparator): # pylint: disable=C0103
     def compare(self, value):
         return ( value == self._operand )
 

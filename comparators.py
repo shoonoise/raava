@@ -3,47 +3,26 @@ import re
 from . import rules
 
 
-##### Public classes #####
-class InListComparator(rules.AbstractComparator):
-    def __init__(self, *variants):
-        rules.AbstractComparator.__init__(self, variants)
+##### Private methods #####
+def _make_comparator(name, method):
+    class comparator(rules.AbstractComparator): # pylint: disable=C0103,W0223
+        compare = lambda self, value: method(value, self.get_operand())
+    comparator.__name__ = name + "_comparator"
+    return comparator
 
-    def compare(self, value):
-        return ( value in self._operand )
 
-class NotInListComparator(rules.AbstractComparator):
-    def __init__(self, *variants):
-        rules.AbstractComparator.__init__(self, variants)
-
-    def compare(self, value):
-        return ( value not in self._operand )
-
-class RegexpComparator(rules.AbstractComparator):
-    def __init__(self, regexp):
-        rules.AbstractComparator.__init__(self, re.compile(regexp))
-
-    def compare(self, value):
-        return ( self._operand.match(value) is not None )
-
-EqComparator = rules.EqComparator
-
-class NeComparator(rules.AbstractComparator):
-    def compare(self, value):
-        return ( value != self._operand )
-
-class GeComparator(rules.AbstractComparator):
-    def compare(self, value):
-        return ( value >= self._operand )
-
-class GtComparator(rules.AbstractComparator):
-    def compare(self, value):
-        return ( value > self._operand )
-
-class LeComparator(rules.AbstractComparator):
-    def compare(self, value):
-        return ( value <= self._operand )
-
-class LtComparator(rules.AbstractComparator):
-    def compare(self, value):
-        return ( value < self._operand )
+##### Public constants #####
+COMPARATORS_MAP = {
+    name: _make_comparator(name, method) for (name, method) in (
+        ("ne",          lambda value, operand: value != operand),
+        ("ge",          lambda value, operand: value >= operand),
+        ("gt",          lambda value, operand: value > operand),
+        ("le",          lambda value, operand: value <= operand),
+        ("lt",          lambda value, operand: value < operand),
+        ("in_list",     lambda value, operand: value in operand),
+        ("not_in_list", lambda value, operand: value not in operand),
+        ("regexp",      lambda value, operand: re.match(operand, value) is not None),
+        # XXX: "eq" == rules.EqComparator, Use key=value directly instead of this
+    )
+}
 
