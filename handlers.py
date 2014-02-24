@@ -72,9 +72,14 @@ def setup_import_alias(alias, path):
 ##### Public classes #####
 class Loader:
     """
-        Loader - interface that implements access to plug-ins, the specific low-level component. It provides
+        Loader - interface that implements access to plugins, the specific low-level component. It provides
         transparent load versioned modules. setup_import_alias() - logically grouped with the Loader, as they both
         provide tools for working with abstraction - versioned modules directory.
+
+        Loader looks for handlers to the specified directory and package.
+            @path -- the path to the directory containing the module versions;
+            @head_name -- symbolic link located in the "path" and pointing to the package with the latest version;
+            @mains -- contains a list with the names of the functions that must be registered.
     """
 
     def __init__(self, path, head_name, mains_list):
@@ -86,7 +91,15 @@ class Loader:
         self._handlers_dict = {}
         self._lock = threading.Lock()
 
+
+    ### Public ###
+
     def get_handlers(self):
+        """
+            This function returns the current version of the rules, and dicionary with handlers keyed by type
+            (mains). If the cache is empty loader or it's content has expired (HEAD updated), the new package is
+            automatically loaded into the cache, and the function returns the new version.
+        """
         head = os.path.basename(os.readlink(os.path.join(self._path, self._head_name)))
         if self._handlers_dict.get(_HEAD) != head:
             if not self._lock.acquire(False):
@@ -99,6 +112,9 @@ class Loader:
                     self._lock.release()
         handlers_dict = self._handlers_dict
         return (handlers_dict[_HEAD], handlers_dict[_HANDLERS])
+
+
+    ### Private ###
 
     def _load_handlers(self, head):
         head_path = os.path.join(self._path, head)
@@ -158,6 +174,14 @@ class _SysModules(dict):
         return dict.__getitem__(self, fullname)
 
 class _AliasImporter(importlib.abc.Finder, importlib.abc.Loader):
+    """
+        Importer = Finder + Loader.
+        This complex definition often found in system libraries, for example, importlib/_bootstrap.py
+        (BuiltinImporter, FrozenImporter). Users must inherit ABC to show how their interface implements the Importer.
+        http://docs.python.org/3.2/library/importlib.html#module-importlib.abc
+        http://docs.python.org/3/reference/import.html
+    """
+
     def __init__(self, alias, path):
         self._alias = alias
         self._path = path
