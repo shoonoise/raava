@@ -36,7 +36,6 @@ def _make_matcher(filters_type):
                 if not isinstance(comparator, AbstractComparator):
                     comparator = eq_comparator(comparator)
                     filters[key] = comparator
-                #comparator.set_handler(handler)
             return handler
         return make_handler
     return matcher
@@ -74,8 +73,8 @@ def _compare(comparator, value):
     if isinstance(comparator, AbstractComparator):
         try:
             return comparator.compare(value)
-        except Exception:
-            raise ComparsionError("Invalid operands: %s vs. %s" % (repr(value), repr(comparator.get_operand())))
+        except Exception as err:
+            raise ComparsionError("Invalid operands: {} vs. {}:".format(repr(value), repr(comparator), str(err)))
     else:
         return ( comparator == value )
 
@@ -83,12 +82,12 @@ def _check_match(job_id, handler, filters, event):
     for (key, comparator) in filters.items():
         try:
             if not (key in event and _compare(comparator, event[key])):
-                _logger.debug("Event %s/%s: not matched with %s(%s); handler: %s.%s",
-                    job_id, key, comparator.__class__.__name__, repr(comparator.get_operand()), handler.__module__, handler.__name__)
+                _logger.debug("Event %s/%s: not matched with %s; handler: %s.%s",
+                    job_id, key, repr(comparator), handler.__module__, handler.__name__)
                 return False
         except ComparsionError as err:
             _logger.debug("Matching error on %s/%s: %s: %s; handler: %s.%s",
-                job_id, key, comparator.__class__.__name__, str(err), handler.__module__, handler.__name__)
+                job_id, key, repr(comparator), str(err), handler.__module__, handler.__name__)
             return False
     return True
 
@@ -114,14 +113,17 @@ class AbstractComparator:
     def __init__(self, operand):
         self._operand = operand
 
+    def compare(self, value):
+        raise NotImplementedError
+
     def get_operand(self):
         return self._operand
 
-    def compare(self, value):
-        raise NotImplementedError
+    def __repr__(self):
+        return "<cmp {}({})>".format(self.__class__.__name__, self._operand)
 
 # Default comparsion method
 class eq_comparator(AbstractComparator): # pylint: disable=C0103
     def compare(self, value):
-        return ( value == self._operand )
+        return ( value == self.get_operand() )
 
