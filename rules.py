@@ -70,13 +70,11 @@ def get_handlers(event_root, handlers):
 
 ##### Private methods #####
 def _compare(comparator, value):
-    if isinstance(comparator, AbstractComparator):
-        try:
-            return comparator.compare(value)
-        except Exception as err:
-            raise ComparsionError("Invalid operands: {} vs. {}".format(repr(value), comparator)) from err
-    else:
-        return ( comparator == value )
+    assert isinstance(comparator, AbstractComparator), "make_handler() returned an attribute without a comparator"
+    try:
+        return comparator.compare(value)
+    except Exception as err:
+        raise ComparsionError("Invalid operands: {} vs. {}".format(repr(value), comparator)) from err
 
 def _check_match(job_id, handler, filters, event):
     for (key, comparator) in filters.items():
