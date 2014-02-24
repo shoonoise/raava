@@ -15,8 +15,8 @@ def _make_comparator(name, method):
         def __call__(self, value):
             try:
                 return method(value, self._operand)
-            except Exception as e:
-                raise ComparsionError("Invalid operands: {} vs. {}".format(value, comparator)) from err
+            except Exception as err:
+                raise ComparsionError("Invalid operands for {}: {} vs. {}".format(self, value, self._operand)) from err
     comparator.__name__ = name + "_comparator"
     return comparator
 
