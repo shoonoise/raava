@@ -66,71 +66,67 @@ class TransactionError(KazooException):
 
 
 ##### Public methods #####
-def connect(nodes_list):
-    hosts = ",".join(nodes_list)
+def connect(zoo_nodes):
+    hosts = ",".join(zoo_nodes)
     client = Client(hosts=hosts)
     client.start()
     _logger.info("Started zookeeper client on hosts: %s", hosts)
     return client
 
-def init(client, fatal_flag = False):
+def init(client, fatal = False):
     for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_JOBS_PATH, JOBS_COUNTER_PATH):
         try:
             client.create(path, makepath=True)
             _logger.info("Created zoo path: %s", path)
         except NodeExistsError:
-            msg_tuple = ("Zoo path is already exists: %s", path)
-            if not fatal_flag:
-                _logger.debug(*msg_tuple)
-            else:
-                _logger.error(*msg_tuple)
+            level = ( logging.ERROR if fatal else logging.DEBUG )
+            _logger.log(level, "Zoo path is already exists: %s", path)
+            if fatal:
                 raise
     client.LockingQueue(INPUT_PATH)._ensure_paths() # pylint: disable=W0212
     client.LockingQueue(READY_PATH)._ensure_paths() # pylint: disable=W0212
     client.Lock(CONTROL_LOCK_PATH)._ensure_path() # pylint: disable=W0212
 
-def drop(client, fatal_flag = False):
+def drop(client, fatal = False):
     for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_PATH, CORE_PATH):
         try:
             client.delete(path, recursive=True)
             _logger.info("Removed zoo path: %s", path)
         except NoNodeError:
-            msg_tuple = ("Zoo path does not exists: %s", path)
-            if not fatal_flag:
-                _logger.debug(*msg_tuple)
-            else:
-                _logger.error(*msg_tuple)
+            level = ( logging.ERROR if fatal else logging.DEBUG )
+            _logger.log(level, "Zoo path is already exists: %s", path)
+            if fatal:
                 raise
 
 
 ###
-def check_transaction(name, results_list, pairs_list = None):
-    ok_flag = True
-    for (index, result) in enumerate(results_list):
+def check_transaction(name, results, pairs = None):
+    ok = True
+    for (index, result) in enumerate(results):
         if isinstance(result, Exception):
-            ok_flag = False
-            if pairs_list is not None:
+            ok = False
+            if pairs is not None:
                 _logger.error("Failed the part of transaction \"%s\": %s=%s; err=%s",
                     name,
-                    pairs_list[index][0], # Node
-                    pairs_list[index][1], # Data
+                    pairs[index][0], # Node
+                    pairs[index][1], # Data
                     result.__class__.__name__,
                 )
-    if not ok_flag:
-        if pairs_list is None:
-            _logger.error("Failed transaction \"%s\": %s", name, results_list)
+    if not ok:
+        if pairs is None:
+            _logger.error("Failed transaction \"%s\": %s", name, results)
         raise TransactionError("Failed transaction: %s" % (name))
 
 
 ##### Public classes #####
 class Connect:
-    def __init__(self, *args_tuple, **kwargs_dict):
-        self._args_tuple = args_tuple
-        self._kwargs_dict = kwargs_dict
+    def __init__(self, *args, **kwargs):
+        self._args = args
+        self._kwargs = kwargs
         self._client = None
 
     def __enter__(self):
-        self._client = connect(*self._args_tuple, **self._kwargs_dict)
+        self._client = connect(*self._args, **self._kwargs)
         return self._client
 
     def __exit__(self, type, value, traceback): # pylint: disable=W0622
@@ -143,19 +139,19 @@ class SingleLock:
         self._client = client
         self._path = path
 
-    def try_acquire(self, raise_flag = False):
+    def try_acquire(self, fatal = False):
         try:
             self._client.create(self._path, ephemeral=True)
             return True
         except NoNodeError:
-            if raise_flag:
+            if fatal:
                 raise
             return False
         except NodeExistsError:
             return False
 
-    def acquire(self, raise_flag = True):
-        while not self.try_acquire(raise_flag):
+    def acquire(self, fatal = True):
+        while not self.try_acquire(fatal):
             wait = threading.Event()
             def watcher(_) :
                 wait.set()
@@ -189,10 +185,10 @@ class IncrementalCounter:
         return value
 
 class Client(kazoo.client.KazooClient): # pylint: disable=R0904
-    def __init__(self, *args_tuple, **kwargs_dict):
+    def __init__(self, *args, **kwargs):
         self.SingleLock = functools.partial(SingleLock, self)
         self.IncrementalCounter = functools.partial(IncrementalCounter, self)
-        kazoo.client.KazooClient.__init__(self, *args_tuple, **kwargs_dict)
+        kazoo.client.KazooClient.__init__(self, *args, **kwargs)
 
     def pget(self, path):
         return pickle.loads(self.get(path)[0])
