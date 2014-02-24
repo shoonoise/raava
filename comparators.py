@@ -1,11 +1,14 @@
 import re
 
-class ComparisonError(Exception):
+
+##### Exceptions #####
+class ComparsionError(Exception):
     pass
+
 
 ##### Private methods #####
 def _make_comparator(name, method):
-    class comparator:
+    class comparator: # pylint: disable=C0103
         def __init__(self, operand):
             self._operand = operand
 
@@ -35,4 +38,6 @@ COMPARATORS_MAP = {
         ("eq",          lambda value, operand: value == operand),
     )
 }
+
+EQ = COMPARATORS_MAP["eq"]
 

@@ -2,6 +2,7 @@ import copy
 import logging
 
 from . import const
+from . import comparators
 
 
 ##### Private objects #####
@@ -28,11 +29,8 @@ def _make_matcher(filters_type):
         def make_handler(handler):
             setattr(handler, filters_type, filters)
             for (key, filter_) in tuple(filters.items()):
-                # HACK to support short syntax when comparing for equality
                 if not callable(filter_):
-                    from .comparators import COMPARATORS_MAP
-                    filter_ = COMPARATORS_MAP["eq"](filter_)
-                    filters[key] = filter_
+                    filters[key] = comparators.EQ(filter_)
             return handler
         return make_handler
     return matcher
