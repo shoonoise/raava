@@ -2,7 +2,6 @@ import copy
 import logging
 
 from . import const
-from .comparators import COMPARATORS_MAP
 
 
 ##### Private objects #####
@@ -31,6 +30,7 @@ def _make_matcher(filters_type):
             for (key, filter_) in tuple(filters.items()):
                 # HACK to support short syntax when comparing for equality
                 if not callable(filter_):
+                    from .comparators import COMPARATORS_MAP
                     filter_ = COMPARATORS_MAP["eq"](filter_)
                     filters[key] = filter_
             return handler
