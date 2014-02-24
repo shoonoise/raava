@@ -1,12 +1,22 @@
 import re
 
-from . import rules
-
+class ComparisonError(Exception):
+    pass
 
 ##### Private methods #####
 def _make_comparator(name, method):
-    class comparator(rules.AbstractComparator): # pylint: disable=C0103,W0223
-        compare = lambda self, value: method(value, self.get_operand())
+    class comparator:
+        def __init__(self, operand):
+            self._operand = operand
+
+        def __repr__(self):
+            return "<cmp {}({})>".format(self.__class__.__name__, self._operand)
+
+        def __call__(self, value):
+            try:
+                return method(value, self._operand)
+            except Exception as e:
+                raise ComparsionError("Invalid operands: {} vs. {}".format(value, comparator)) from err
     comparator.__name__ = name + "_comparator"
     return comparator
 
@@ -22,7 +32,7 @@ COMPARATORS_MAP = {
         ("in_list",     lambda value, operand: value in operand),
         ("not_in_list", lambda value, operand: value not in operand),
         ("regexp",      lambda value, operand: re.match(operand, value) is not None),
-        # XXX: "eq" == rules.EqComparator, Use key=value directly instead of this
+        ("eq",          lambda value, operand: value == operand),
     )
 }
 

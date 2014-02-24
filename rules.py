@@ -2,6 +2,7 @@ import copy
 import logging
 
 from . import const
+from .comparators import COMPARATORS_MAP
 
 
 ##### Private objects #####
@@ -22,20 +23,16 @@ class _FILTER:
     EXTRA = "extra_filters"
 
 
-##### Exceptions #####
-class ComparsionError(Exception):
-    pass
-
-
 ##### Public methods #####
 def _make_matcher(filters_type):
     def matcher(**filters):
         def make_handler(handler):
             setattr(handler, filters_type, filters)
-            for (key, comparator) in tuple(filters.items()):
-                if not isinstance(comparator, AbstractComparator):
-                    comparator = eq_comparator(comparator)
-                    filters[key] = comparator
+            for (key, filter_) in tuple(filters.items()):
+                # HACK to support short syntax when comparing for equality
+                if not callable(filter_):
+                    filter_ = COMPARATORS_MAP["eq"](filter_)
+                    filters[key] = filter_
             return handler
         return make_handler
     return matcher
@@ -69,23 +66,16 @@ def get_handlers(event_root, handlers):
 
 
 ##### Private methods #####
-def _compare(comparator, value):
-    assert isinstance(comparator, AbstractComparator), "make_handler() returned an attribute without a comparator"
-    try:
-        return comparator.compare(value)
-    except Exception as err:
-        raise ComparsionError("Invalid operands: {} vs. {}".format(repr(value), comparator)) from err
-
 def _check_match(job_id, handler, filters, event):
-    for (key, comparator) in filters.items():
+    for (key, filter_) in filters.items():
         try:
-            if not (key in event and _compare(comparator, event[key])):
+            if not (key in event and filter_(event[key])):
                 _logger.debug("Event %s/%s: not matched with %s; handler: %s.%s",
-                    job_id, key, comparator, handler.__module__, handler.__name__)
+                    job_id, key, filter_, handler.__module__, handler.__name__)
                 return False
-        except ComparsionError as err:
-            _logger.debug("Matching error on %s/%s: %s: %s; handler: %s.%s",
-                job_id, key, comparator, err, handler.__module__, handler.__name__)
+        except Exception as err:
+            _logger.error("Matching error on %s/%s: %s: %s; handler: %s.%s",
+                job_id, key, filter_, err, handler.__module__, handler.__name__)
             return False
     return True
 
@@ -104,24 +94,3 @@ class EventRoot(dict):
 
     def set_extra(self, extra):
         self._extra_attrs = extra
-
-
-###
-class AbstractComparator:
-    def __init__(self, operand):
-        self._operand = operand
-
-    def compare(self, value):
-        raise NotImplementedError
-
-    def get_operand(self):
-        return self._operand
-
-    def __repr__(self):
-        return "<cmp {}({})>".format(self.__class__.__name__, self._operand)
-
-# Default comparsion method
-class eq_comparator(AbstractComparator): # pylint: disable=C0103
-    def compare(self, value):
-        return ( value == self.get_operand() )
-
