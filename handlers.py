@@ -136,7 +136,7 @@ def _get_aliased_module(fullname, path):
         if module is not None and module.__file__.startswith(path):
             root = module.__name__.split(".")[0]
             return ".".join([root] + fullname.split(".")[1:])
-    raise AssertionError("_get_aliased_module{} can't find a valid caller in the stack".format((fullname, path)))
+    raise RuntimeError("_get_aliased_module{} can't find a valid caller in the stack".format((fullname, path)))
 
 
 ##### Private classes #####
