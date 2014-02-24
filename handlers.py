@@ -71,6 +71,12 @@ def setup_import_alias(alias, path):
 
 ##### Public classes #####
 class Loader:
+    """
+        Loader - interface that implements access to plug-ins, the specific low-level component. It provides
+        transparent load versioned modules. setup_import_alias() - logically grouped with the Loader, as they both
+        provide tools for working with abstraction - versioned modules directory.
+    """
+
     def __init__(self, path, head_name, mains_list):
         if path not in sys.path:
             raise RuntimeError("Handlers path \"%s\" is not in sys.path!" % (path))
