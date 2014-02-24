@@ -74,7 +74,7 @@ def _compare(comparator, value):
         try:
             return comparator.compare(value)
         except Exception as err:
-            raise ComparsionError("Invalid operands: {} vs. {}:".format(repr(value), repr(comparator), str(err)))
+            raise ComparsionError("Invalid operands: {} vs. {}".format(repr(value), comparator)) from err
     else:
         return ( comparator == value )
 
@@ -83,11 +83,11 @@ def _check_match(job_id, handler, filters, event):
         try:
             if not (key in event and _compare(comparator, event[key])):
                 _logger.debug("Event %s/%s: not matched with %s; handler: %s.%s",
-                    job_id, key, repr(comparator), handler.__module__, handler.__name__)
+                    job_id, key, comparator, handler.__module__, handler.__name__)
                 return False
         except ComparsionError as err:
             _logger.debug("Matching error on %s/%s: %s: %s; handler: %s.%s",
-                job_id, key, repr(comparator), str(err), handler.__module__, handler.__name__)
+                job_id, key, comparator, err, handler.__module__, handler.__name__)
             return False
     return True
 
