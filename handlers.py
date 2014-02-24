@@ -63,7 +63,7 @@ def setup_import_alias(alias, path):
         возвращает ссылку на соответствующий git_xxx.
     """
 
-    _logger.debug("Installed import alias \"%s\" for \"%s/*\"", alias, path)
+    _logger.debug("Installing import alias \"%s\" for \"%s/*\"", alias, path)
     assert not isinstance(sys.modules, _SysModules), "setup_import_alias() can be called only once"
     sys.modules = _SysModules(alias, path, sys.modules)
     sys.meta_path = [_AliasImporter(alias, path)] + sys.meta_path
