@@ -82,13 +82,13 @@ class Loader:
             @mains -- contains a list with the names of the functions that must be registered.
     """
 
-    def __init__(self, path, head_name, mains_list):
+    def __init__(self, path, head_name, mains):
         if path not in sys.path:
             raise RuntimeError("Handlers path \"%s\" is not in sys.path!" % (path))
         self._path = path
         self._head_name = head_name
-        self._mains_list = mains_list
-        self._handlers_dict = {}
+        self._mains = mains
+        self._head_cache = {}
         self._lock = threading.Lock()
 
 
@@ -101,7 +101,7 @@ class Loader:
             automatically loaded into the cache, and the function returns the new version.
         """
         head = os.path.basename(os.readlink(os.path.join(self._path, self._head_name)))
-        if self._handlers_dict.get(_HEAD) != head:
+        if self._head_cache.get(_HEAD) != head:
             if not self._lock.acquire(False):
                 self._lock.acquire()
                 self._lock.release()
@@ -110,7 +110,7 @@ class Loader:
                     self._load_handlers(head)
                 finally:
                     self._lock.release()
-        handlers_dict = self._handlers_dict
+        handlers_dict = self._head_cache
         return (handlers_dict[_HEAD], handlers_dict[_HANDLERS])
 
 
@@ -121,10 +121,10 @@ class Loader:
         assert os.access(head_path, os.F_OK)
 
         _logger.debug("Loading rules from head: %s; root: %s", head, self._path)
-        handlers_dict = { name: set() for name in self._mains_list }
-        for (root_path, _, files_list) in os.walk(head_path):
+        handlers_dict = { name: set() for name in self._mains }
+        for (root_path, _, files) in os.walk(head_path):
             rel_path = root_path.replace(head_path, os.path.basename(head_path))
-            for file_name in files_list:
+            for file_name in files:
                 if file_name[0] in (".", "_") or not file_name.lower().endswith(".py"):
                     continue
 
@@ -137,14 +137,14 @@ class Loader:
                     _logger.exception("Cannot import module \"%s\" (path %s)", module_name, os.path.join(root_path, file_name))
                     continue
 
-                for (handler_type, handlers_set) in handlers_dict.items():
+                for (handler_type, collection) in handlers_dict.items():
                     handler = getattr(module, handler_type, None)
                     if handler is not None:
                         _logger.debug("Loaded %s handler from %s", handler_type, module)
-                        handlers_set.add(handler)
+                        collection.add(handler)
                         continue
 
-        self._handlers_dict = {
+        self._head_cache = {
             _HEAD:     head,
             _HANDLERS: handlers_dict,
         }
