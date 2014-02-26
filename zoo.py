@@ -17,6 +17,7 @@ CONTROL_PATH = "/control"
 READY_PATH   = "/ready"
 RUNNING_PATH = "/running"
 CORE_PATH    = "/core"
+USER_PATH    = "/user"
 
 INPUT_JOB_ID = "job_id"
 INPUT_EVENT  = "event"
@@ -74,7 +75,7 @@ def connect(zoo_nodes):
     return client
 
 def init(client, fatal = False):
-    for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_JOBS_PATH, JOBS_COUNTER_PATH):
+    for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_JOBS_PATH, JOBS_COUNTER_PATH, USER_PATH):
         try:
             client.create(path, makepath=True)
             _logger.info("Created zoo path: %s", path)
@@ -88,7 +89,7 @@ def init(client, fatal = False):
     client.Lock(CONTROL_LOCK_PATH)._ensure_path() # pylint: disable=W0212
 
 def drop(client, fatal = False):
-    for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_PATH, CORE_PATH):
+    for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_PATH, CORE_PATH, USER_PATH):
         try:
             client.delete(path, recursive=True)
             _logger.info("Removed zoo path: %s", path)
