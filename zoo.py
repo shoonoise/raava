@@ -84,8 +84,14 @@ def init(client, fatal = False):
             _logger.log(level, "Zoo path is already exists: %s", path)
             if fatal:
                 raise
+
+    # Some of our code does not use the API of LockingQueue(), and puts the data in the queue by using
+    # transactions. Because transactions can not do CAS (to prepare the tree nodes), we must be sure that
+    # the right tree was set up in advance.
     client.LockingQueue(INPUT_PATH)._ensure_paths() # pylint: disable=W0212
     client.LockingQueue(READY_PATH)._ensure_paths() # pylint: disable=W0212
+
+    # To Lock() to do it is not necessary. This line is added to show the location in node structure.
     client.Lock(CONTROL_LOCK_PATH)._ensure_path() # pylint: disable=W0212
 
 def drop(client, fatal = False):
