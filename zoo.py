@@ -1,3 +1,42 @@
+"""
+    === ZooKeeper nodes scheme ===
+
+    /input           # LockingQueue(); Queue in which to place the data from events.add().
+
+    /control         # Lock(); Temporary tasks data, counters and the control interface.
+    /control/lock    # Global lock for the control interface. Used in events.get_info(),
+                     # get_finished() to obtain consistent data about jobs.
+
+    /control/jobs/<job_uuid>             # Job data.
+    /control/jobs/<job_uuid>/lock        # SingleLock(); This lock is used by collector when searching finished tasks.
+    /control/jobs/<job_uuid>/cancel      # If this node exists, the job will be stopped.
+    /control/jobs/<job_uuid>/version     # The rules HEAD, which is used when creating the job.
+    /control/jobs/<job_uuid>/parents     # List with parent jobs.
+    /control/jobs/<job_uuid>/added       # Time when the job was added to /input.
+    /control/jobs/<job_uuid>/splitted    # Time when the job was processed by splitter.
+
+    /control/jobs/<job_uuid>/tasks/<task_uuid>             # The task data.
+    /control/jobs/<job_uuid>/tasks/<task_uuid>/created     # Time when the task was started for the first time.
+    /control/jobs/<job_uuid>/tasks/<task_uuid>/recycled    # If the task has fallen, collector
+                                                           # put it in /ready, setting this timestamp.
+    /control/jobs/<job_uuid>/tasks/<task_uuid>/finished    # The task completion time.
+    /control/jobs/<job_uuid>/tasks/<task_uuid>/status      # The task status (new/ready/finished).
+    /control/jobs/<job_uuid>/tasks/<task_uuid>/stack       # Stack of the task.
+
+    /ready    # LockingQueue(); Queue for worker with the ready to run tasks.
+
+    /running
+    /running/<task_uuid>         # Here are details of running tasks: a reference to the function, the pickled stack,
+                                 # etc. A signle node.
+    /running/<task_uuid>/lock    # SingleLock(); This lock is used by collector when searching fallen tasks.
+
+    /core                 # Common system section.
+    /core/jobs_counter    # Incremental counter for input jobs/events.
+
+    /user    # Section for user data.
+"""
+
+
 import pickle
 import functools
 import threading
