@@ -123,6 +123,7 @@ def get_info(client, job_id):
                     zoo.CONTROL_TASK_FINISHED,
                     zoo.CONTROL_TASK_STATUS,
                     zoo.CONTROL_TASK_STACK,
+                    zoo.CONTROL_TASK_EXC,
                 )
             }
         return info_dict

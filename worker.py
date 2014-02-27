@@ -8,14 +8,7 @@ import logging
 
 from . import const
 from . import application
-from . import events
 from . import zoo
-
-
-##### Public constants #####
-class _SWITCH_REASON:
-    CHECKPOINT = "checkpoint"
-    FORK       = "fork"
 
 
 ##### Private constants #####
@@ -112,7 +105,7 @@ class WorkerThread(application.Thread):
         trans.create(lock_path, ephemeral=True) # XXX: Acquired SingleLock()
         zoo.check_transaction("init_task", trans.commit())
 
-        task_thread = _TaskThread(parents_list, job_id, task_id, handler, state, self._controller, self._saver, self._fork)
+        task_thread = _TaskThread(parents_list, job_id, task_id, handler, state, self._controller, self._saver)
         self._threads_dict[task_id] = {
             _TASK_THREAD: task_thread,
             _TASK_LOCK:   self._client.SingleLock(lock_path),
@@ -138,16 +131,12 @@ class WorkerThread(application.Thread):
         with self._client_lock:
             return self._saver_unsafe(*args_tuple, **kwargs_dict)
 
-    def _fork(self, *args_tuple, **kwargs_dict):
-        with self._client_lock:
-            self._fork_unsafe(*args_tuple, **kwargs_dict)
-
     def _controller_unsafe(self, task):
         parents_list = task.get_parents()
         root_job_id = ( task.get_job_id() if len(parents_list) == 0 else parents_list[0][0] )
         return ( self._client.exists(zoo.join(zoo.CONTROL_JOBS_PATH, root_job_id, zoo.CONTROL_CANCEL)) is None )
 
-    def _saver_unsafe(self, task, stack_list, state):
+    def _saver_unsafe(self, task, stack_list, exc, state):
         job_id = task.get_job_id()
         task_id = task.get_task_id()
         trans = self._client.transaction()
@@ -169,6 +158,7 @@ class WorkerThread(application.Thread):
                 for item in stack_list
                 if item[0].startswith(self._rules_path)
             ] ))
+        trans.pset(zoo.join(control_task_path, zoo.CONTROL_TASK_EXC), exc)
 
         try:
             zoo.check_transaction("saver", trans.commit())
@@ -177,17 +167,13 @@ class WorkerThread(application.Thread):
             raise
         _logger.debug("Saved; status: %s", status)
 
-    def _fork_unsafe(self, task, event_root, handler_type):
-        events.add(self._client, event_root, handler_type, task.get_parents() + [(task.get_job_id(), task.get_task_id())])
-
 
 
 ##### Private classes #####
 class _TaskThread(threading.Thread):
-    def __init__(self, parents_list, job_id, task_id, handler, state, controller, saver, fork):
+    def __init__(self, parents_list, job_id, task_id, handler, state, controller, saver):
         self._controller = controller
         self._saver = saver
-        self._fork = fork
         self._task = _Task(parents_list, job_id, task_id, handler, state)
         self._stop_flag = False
         thread_name = "TaskThread::" + task_id
@@ -210,27 +196,24 @@ class _TaskThread(threading.Thread):
             self._task.init_cont()
         except Exception:
             _logger.exception("Cont-init error")
-            self._saver(self._task, None, None)
+            self._saver(self._task, None, traceback.format_exc(), None)
 
         while not self._stop_flag and self._task.is_pending():
             if not self._controller(self._task):
-                self._saver(self._task, None, None)
+                self._saver(self._task, None, None, None)
                 _logger.info("Task is cancelled")
                 return
 
-            (ret_tuple, err, state) = self._task.step()
-            (reason, stack_list, data) = ( ret_tuple if ret_tuple is not None else (None,)*3 )
-            if reason == _SWITCH_REASON.FORK:
-                self._fork(self._task, *data)
-            if err is not None:
-                _logger.error("Unhandled step() error: %s", err)
-                self._saver(self._task, None, None)
+            (stack_list, exc, state) = self._task.step()
+            if exc is not None:
+                _logger.error("Unhandled step() error")
+                self._saver(self._task, None, exc, None)
                 return
 
-            self._saver(self._task, stack_list, state)
+            self._saver(self._task, stack_list, None, state)
 
         if not self._task.is_pending():
-            self._saver(self._task, None, None)
+            self._saver(self._task, None, None, None)
             _logger.info("Task is finished")
         else:
             _logger.info("Task is stopped")
@@ -259,11 +242,9 @@ class _Task:
 
     ###
 
-    def checkpoint(self, data = None):
-        self._switch(_SWITCH_REASON.CHECKPOINT, data)
-
-    def fork(self, event_root, handler_type):
-        self._switch(_SWITCH_REASON.FORK, (event_root, handler_type))
+    def checkpoint(self):
+        stack_list = traceback.extract_stack(inspect.currentframe())
+        self._cont.switch(stack_list)
 
     ###
 
@@ -291,17 +272,11 @@ class _Task:
         assert self._cont.is_pending(), "Attempt to step() on a finished task"
         _logger.debug("Activating...")
         try:
-            retval = self._cont.switch()
-            _logger.debug("... return --> %s", str(retval))
-            return (retval, None, pickle.dumps(self._cont))
-        except Exception as err:
+            stack_list = self._cont.switch()
+            _logger.debug("... stack --> %s", str(stack_list))
+            return (stack_list, None, pickle.dumps(self._cont))
+        except Exception:
             _logger.exception("Step error")
-            return (None, err, None)
-
-
-    ### Private ###
-
-    def _switch(self, reason, data):
-        stack_list = traceback.extract_stack(inspect.currentframe())
-        self._cont.switch((reason, stack_list, data))
+            # self._cont.switch() switches the stack, so we will see a valid exception, up to his place in the rule.
+            return (None, traceback.format_exc(), None)
 

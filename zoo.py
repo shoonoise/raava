@@ -75,6 +75,7 @@ CONTROL_TASK_RECYCLED  = "recycled"
 CONTROL_TASK_FINISHED  = "finished"
 CONTROL_TASK_STATUS    = "status"
 CONTROL_TASK_STACK     = "stack"
+CONTROL_TASK_EXC       = "exc"
 CONTROL_CANCEL         = "cancel"
 CONTROL_LOCK_PATH      = join(CONTROL_PATH, LOCK)
 

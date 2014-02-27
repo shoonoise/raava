@@ -135,6 +135,7 @@ class CollectorThread(application.Thread):
                         zoo.CONTROL_TASK_FINISHED,
                         zoo.CONTROL_TASK_STATUS,
                         zoo.CONTROL_TASK_STACK,
+                        zoo.CONTROL_TASK_EXC,
                     ):
                     trans.delete(zoo.join(control_job_path, zoo.CONTROL_TASKS, task_id, node))
                 trans.delete(zoo.join(control_job_path, zoo.CONTROL_TASKS, task_id))
