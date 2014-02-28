@@ -3,14 +3,13 @@ import uuid
 import time
 import logging
 
-from . import const
 from . import application
 from . import rules
 from . import zoo
 
 
 ##### Private objects #####
-_logger = logging.getLogger(const.LOGGER_NAME)
+_logger = logging.getLogger(__name__)
 _splitters = 0
 
 

@@ -6,7 +6,6 @@ import traceback
 import time
 import logging
 
-from . import const
 from . import application
 from . import zoo
 
@@ -17,7 +16,7 @@ _TASK_LOCK   = "lock"
 
 
 ##### Private objects #####
-_logger = logging.getLogger(const.LOGGER_NAME)
+_logger = logging.getLogger(__name__)
 _workers = 0
 
 

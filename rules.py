@@ -1,12 +1,11 @@
 import copy
 import logging
 
-from . import const
 from . import comparators
 
 
 ##### Private objects #####
-_logger = logging.getLogger(const.LOGGER_NAME)
+_logger = logging.getLogger(__name__)
 
 
 ##### Public constants #####

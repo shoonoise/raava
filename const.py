@@ -1,2 +1,0 @@
-LOGGER_NAME = "raava"
-

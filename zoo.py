@@ -48,8 +48,6 @@ import kazoo.protocol.paths
 from kazoo.exceptions import * # pylint: disable=W0401,W0614
 from kazoo.protocol.paths import join # pylint: disable=W0611
 
-from . import const
-
 
 ##### Public constants #####
 INPUT_PATH   = "/input"
@@ -99,7 +97,7 @@ class TASK_STATUS:
 
 
 ##### Private objects #####
-_logger = logging.getLogger(const.LOGGER_NAME)
+_logger = logging.getLogger(__name__)
 
 
 ##### Exceptions #####

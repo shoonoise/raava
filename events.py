@@ -3,13 +3,12 @@ import pickle
 import time
 import logging
 
-from . import const
 from . import rules
 from . import zoo
 
 
 ##### Private objects #####
-_logger = logging.getLogger(const.LOGGER_NAME)
+_logger = logging.getLogger(__name__)
 
 
 ##### Exceptions #####

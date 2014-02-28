@@ -6,8 +6,6 @@ import importlib.abc
 import inspect
 import logging
 
-from . import const
-
 
 ##### Public constants #####
 _HEAD     = "head"
@@ -15,7 +13,7 @@ _HANDLERS = "handlers"
 
 
 ##### Private objects #####
-_logger = logging.getLogger(const.LOGGER_NAME)
+_logger = logging.getLogger(__name__)
 
 
 ##### Public methods #####
