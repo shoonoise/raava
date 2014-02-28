@@ -84,7 +84,7 @@ class SplitterThread(application.Thread):
         event_root = event_root.copy()
         def new_handler():
             return handler(event_root)
-        # XXX: When unpickling an error may occur, if it makes the service that know nothing about
-        # handlers. For example, the collector. Services that need a stack or handler explicitly unpickle it.
+        # XXX: Unpickling can fail if the service that makes unpacking knows nothing about handlers (has no PATH for rules).
+        # For example, the collector. Services that need a stack or handler explicitly unpickle it.
         return pickle.dumps(new_handler)
 
