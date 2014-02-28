@@ -54,6 +54,7 @@ class SplitterThread(application.Thread):
         trans.pcreate(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_SPLITTED), time.time())
         trans.create(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS))
 
+        tasks_dict = {}
         for handler in handlers_set:
             task_id = str(uuid.uuid4())
             trans.create(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id))
@@ -72,9 +73,10 @@ class SplitterThread(application.Thread):
                     zoo.READY_HANDLER: self._make_handler_pickle(handler, input_dict[zoo.INPUT_EVENT]),
                     zoo.READY_STATE:   None,
                 }))
+            tasks_dict[task_id] = handler
 
         zoo.check_transaction("split_input", trans.commit())
-        for handler in handlers_set:
+        for (task_id, handler) in tasks_dict.items():
             _logger.info("... splitted %s --> %s; handler: %s.%s", job_id, task_id, handler.__module__, handler.__name__)
 
     def _make_handler_pickle(self, handler, event_root):

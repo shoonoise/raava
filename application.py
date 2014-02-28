@@ -43,7 +43,7 @@ class Application:
         self._interval = interval
         self._thread_kwargs_dict = kwargs_dict
 
-        _logger.debug('creating application. {}'.format(vars(self)), extra=vars(self))
+        _logger.debug("creating application. {}".format(vars(self)), extra=vars(self))
 
         self._stop_flag = False
         self._signal_handlers_dict = {}
