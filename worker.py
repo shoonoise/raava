@@ -220,7 +220,7 @@ class _TaskThread(threading.Thread):
 
 class _Task:
     def __init__(self, parents_list, job_id, task_id, handler, state):
-        assert len(tuple(filter(None, (handler, state)))) == 1, "Required handler OR state"
+        assert bool(handler) ^ bool(state), "Required handler OR state"
         self._parents_list = parents_list
         self._job_id = job_id
         self._task_id = task_id
