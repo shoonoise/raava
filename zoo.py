@@ -22,6 +22,7 @@
     /control/jobs/<job_uuid>/tasks/<task_uuid>/finished    # The task completion time.
     /control/jobs/<job_uuid>/tasks/<task_uuid>/status      # The task status (new/ready/finished).
     /control/jobs/<job_uuid>/tasks/<task_uuid>/stack       # Stack of the task.
+    /control/jobs/<job_uuid>/tasks/<task_uuid>/exc         # If the handler is crashed, contains an exception as string.
 
     /ready    # LockingQueue(); Queue for worker with the ready to run tasks.
 
