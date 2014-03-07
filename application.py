@@ -30,6 +30,7 @@ class Thread(threading.Thread):
 
     def cleanup(self):
         self._client.stop()
+        self._client.close()
 
 class Application:
     def __init__(self, thread_class, workers, die_after, quit_wait, interval, **kwargs_dict):
