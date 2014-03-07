@@ -3,8 +3,6 @@ import signal
 import time
 import logging
 
-from . import zoo
-
 
 ##### Private constants #####
 _SIGNAL_HANDLER = "handler"
@@ -23,9 +21,9 @@ _logger = logging.getLogger(__name__)
 
 ##### Public classes #####
 class Thread(threading.Thread):
-    def __init__(self, nodes_list, **kwargs_dict):
+    def __init__(self, zoo_connect, **kwargs_dict):
         threading.Thread.__init__(self, **kwargs_dict)
-        self._client = zoo.connect(nodes_list)
+        self._client = zoo_connect()
 
     def alive_children(self):
         return 0

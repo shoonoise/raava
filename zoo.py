@@ -106,9 +106,9 @@ class TransactionError(KazooException):
 
 
 ##### Public methods #####
-def connect(zoo_nodes):
+def connect(zoo_nodes, timeout, randomize_hosts):
     hosts = ",".join(zoo_nodes)
-    client = Client(hosts=hosts)
+    client = Client(hosts=hosts, timeout=timeout, randomize_hosts=randomize_hosts)
     client.start()
     _logger.info("Started zookeeper client on hosts: %s", hosts)
     return client
@@ -165,21 +165,6 @@ def check_transaction(name, results, pairs = None):
 
 
 ##### Public classes #####
-class Connect:
-    def __init__(self, *args, **kwargs):
-        self._args = args
-        self._kwargs = kwargs
-        self._client = None
-
-    def __enter__(self):
-        self._client = connect(*self._args, **self._kwargs)
-        return self._client
-
-    def __exit__(self, type, value, traceback): # pylint: disable=W0622
-        self._client.stop()
-
-
-###
 class SingleLock:
     def __init__(self, client, path):
         self._client = client
