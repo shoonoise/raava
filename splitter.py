@@ -15,14 +15,13 @@ _splitters = 0
 
 ##### Public classes #####
 class SplitterThread(application.Thread):
-    def __init__(self, loader, queue_timeout, **kwargs_dict):
+    def __init__(self, loader, **kwargs_dict):
         global _splitters
         _splitters += 1
         application.Thread.__init__(self, name="Splitter::{splitters:03d}".format(splitters=_splitters), **kwargs_dict)
 
         self._loader = loader
-        self._queue_timeout = queue_timeout
-        self._input_queue = self._client.LockingQueue(zoo.INPUT_PATH)
+        self._input_queue = self._client.AbortableLockingQueue(zoo.INPUT_PATH)
         self._stop_flag = False
 
 
@@ -30,13 +29,14 @@ class SplitterThread(application.Thread):
 
     def stop(self):
         self._stop_flag = True
+        self._input_queue.abort_get()
 
 
     ### Private ###
 
     def run(self):
         while not self._stop_flag:
-            data = self._input_queue.get(self._queue_timeout)
+            data = self._input_queue.get()
             if data is None :
                 continue
             self._split_input(pickle.loads(data))

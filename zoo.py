@@ -45,6 +45,7 @@ import logging
 
 import kazoo.client
 import kazoo.protocol.paths
+import kazoo.protocol.states
 from kazoo.exceptions import * # pylint: disable=W0401,W0614
 from kazoo.protocol.paths import join # pylint: disable=W0611
 
@@ -124,7 +125,7 @@ def init(client, fatal = False):
             if fatal:
                 raise
 
-    # Some of our code does not use the API of LockingQueue(), and puts the data in the queue by using
+    # Some of our code does not use the API of AbortableLockingQueue(), and puts the data in the queue by using
     # transactions. Because transactions can not do CAS (to prepare the tree nodes), we must be sure that
     # the right tree was set up in advance.
     client.LockingQueue(INPUT_PATH)._ensure_paths() # pylint: disable=W0212
@@ -215,10 +216,70 @@ class IncrementalCounter:
             self._client.pset(self._path, value + 1)
         return value
 
+class AbortableLockingQueue(kazoo.recipe.queue.LockingQueue):
+    def get(self, poll_every=0.1):
+        self._ensure_paths()
+        if not self.processing_element is None:
+            return self.processing_element[1]
+        else:
+            self._abort = False
+            return self._inner_get(poll_every)
+
+    def abort_get(self):
+        self._abort = True # pylint: disable=W0201
+
+    def _inner_get(self, poll_every):
+        # XXX: Partial copypaste from kazoo-1.3.1-py3.2.egg/kazoo/recipe/queue.py:252
+        # In my implementation, get() does not accept "timeout" argument and waits until
+        # the object appears in the queue. Waiting can interrupt by abort_get().
+        # Frequent calls of LockingQueue.get(timeout) lead to memory leaks, if data in the
+        # queue rarely appear the queue data rarely appear. This is due to the fact that
+        # more and more instances of check_for_updates() registered as watchers.
+
+        flag = self.client.handler.event_object()
+        lock = self.client.handler.lock_object()
+        canceled = False
+        value = []
+
+        def check_for_updates(event):
+            if not event is None and event.type != kazoo.protocol.states.EventType.CHILD:
+                return
+            with lock:
+                if canceled or flag.isSet():
+                    return
+                values = self.client.retry(self.client.get_children,
+                    self._entries_path,
+                    check_for_updates)
+                taken = self.client.retry(self.client.get_children,
+                    self._lock_path,
+                    check_for_updates)
+                available = self._filter_locked(values, taken)
+                if len(available) > 0:
+                    ret = self._take(available[0])
+                    if not ret is None:
+                        # By this time, no one took the task
+                        value.append(ret)
+                        flag.set()
+
+        check_for_updates(None)
+        retval = None
+        while not self._abort:
+            flag.wait(poll_every)
+            if flag.isSet():
+                self._abort = True
+        with lock:
+            canceled = True
+            if len(value) > 0:
+                # We successfully locked an entry
+                self.processing_element = value[0]
+                retval = value[0][1]
+        return retval
+
 class Client(kazoo.client.KazooClient): # pylint: disable=R0904
     def __init__(self, *args, **kwargs):
         self.SingleLock = functools.partial(SingleLock, self)
         self.IncrementalCounter = functools.partial(IncrementalCounter, self)
+        self.AbortableLockingQueue = functools.partial(AbortableLockingQueue, self)
         kazoo.client.KazooClient.__init__(self, *args, **kwargs)
 
     def pget(self, path):

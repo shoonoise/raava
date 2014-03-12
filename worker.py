@@ -33,14 +33,13 @@ def make_task_builtin(method):
 
 ##### Public classes #####
 class WorkerThread(application.Thread):
-    def __init__(self, queue_timeout, rules_path, **kwargs_dict):
+    def __init__(self, rules_path, **kwargs_dict):
         global _workers
         _workers += 1
         application.Thread.__init__(self, name="Worker::{workers:03d}".format(workers=_workers), **kwargs_dict)
 
-        self._queue_timeout = queue_timeout
         self._rules_path = rules_path
-        self._ready_queue = self._client.LockingQueue(zoo.READY_PATH)
+        self._ready_queue = self._client.AbortableLockingQueue(zoo.READY_PATH)
         self._client_lock = threading.Lock()
         self._threads_dict = {}
         self._stop_flag = False
@@ -50,6 +49,7 @@ class WorkerThread(application.Thread):
 
     def stop(self):
         self._stop_flag = True
+        self._ready_queue.abort_get()
         for task_dict in self._threads_dict.values():
             task_dict[_TASK_THREAD].stop()
 
@@ -67,7 +67,7 @@ class WorkerThread(application.Thread):
 
     def run(self):
         while not self._stop_flag:
-            data = self._ready_queue.get(self._queue_timeout)
+            data = self._ready_queue.get()
             self._cleanup()
             if data is None:
                 continue
