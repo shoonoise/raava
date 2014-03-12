@@ -233,8 +233,8 @@ class AbortableLockingQueue(kazoo.recipe.queue.LockingQueue):
         # In my implementation, get() does not accept "timeout" argument and waits until
         # the object appears in the queue. Waiting can interrupt by abort_get().
         # Frequent calls of LockingQueue.get(timeout) lead to memory leaks, if data in the
-        # queue rarely appear the queue data rarely appear. This is due to the fact that
-        # more and more instances of check_for_updates() registered as watchers.
+        # queue rarely appear. This is due to the fact that more and more instances of
+        # check_for_updates() registered as watchers.
 
         flag = self.client.handler.event_object()
         lock = self.client.handler.lock_object()
