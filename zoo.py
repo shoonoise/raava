@@ -1,6 +1,8 @@
 """
     === ZooKeeper nodes scheme ===
 
+    Nodes may be in an arbitrary chroot.
+
     /input           # LockingQueue(); Queue in which to place the data from events.add().
 
     /control         # Lock(); Temporary tasks data, counters and the control interface.
@@ -107,9 +109,10 @@ class TransactionError(KazooException):
 
 
 ##### Public methods #####
-def connect(zoo_nodes, timeout, randomize_hosts):
+def connect(zoo_nodes, timeout, randomize_hosts, chroot):
     hosts = ",".join(zoo_nodes)
     client = Client(hosts=hosts, timeout=timeout, randomize_hosts=randomize_hosts)
+    client.chroot = chroot
     client.start()
     _logger.info("Started zookeeper client on hosts: %s", hosts)
     return client
@@ -266,7 +269,7 @@ class AbortableLockingQueue(kazoo.recipe.queue.LockingQueue):
         while not self._abort:
             flag.wait(poll_every)
             if flag.isSet():
-                self._abort = True
+                self._abort = True # pylint: disable=W0201
         with lock:
             canceled = True
             if len(value) > 0:
