@@ -265,6 +265,13 @@ class FastQueue:
 
         return self._client.get(path)[0]
 
+class TransactionRequest(kazoo.client.TransactionRequest):
+    def pset(self, path, value):
+        return self.set_data(path, pickle.dumps(value))
+
+    def pcreate(self, path, value):
+        return self.create(path, pickle.dumps(value))
+
 class Client(kazoo.client.KazooClient): # pylint: disable=R0904
     def __init__(self, *args, **kwargs):
         self.SingleLock = functools.partial(SingleLock, self)
@@ -283,19 +290,4 @@ class Client(kazoo.client.KazooClient): # pylint: disable=R0904
 
     def transaction(self):
         return TransactionRequest(self)
-
-class TransactionRequest(kazoo.client.TransactionRequest):
-    def lq_put(self, queue_path, data, priority = 100):
-        if isinstance(queue_path, (list, tuple)):
-            queue_path = kazoo.protocol.paths.join(*queue_path)
-        self.create("{path}/entries/entry-{priority:03d}-".format(
-                path=queue_path,
-                priority=priority,
-            ), data, sequence=True)
-
-    def pset(self, path, value):
-        return self.set_data(path, pickle.dumps(value))
-
-    def pcreate(self, path, value):
-        return self.create(path, pickle.dumps(value))
 
