@@ -3,6 +3,8 @@ import signal
 import time
 import logging
 
+from . import zoo
+
 
 ##### Private constants #####
 _SIGNAL_HANDLER = "handler"
@@ -29,8 +31,7 @@ class Thread(threading.Thread):
         return 0
 
     def cleanup(self):
-        self._client.stop()
-        self._client.close()
+        zoo.close(self._client)
 
 class Application:
     def __init__(self, thread_class, workers, die_after, quit_wait, interval, **kwargs_dict):

@@ -115,6 +115,13 @@ def connect(zoo_nodes, timeout, randomize_hosts, chroot):
     _logger.info("Started zookeeper client on hosts: %s", hosts)
     return client
 
+def close(client):
+    client.stop()
+    client.close()
+    _logger.info("Zookeeper client has been closed")
+
+
+###
 def init(client, fatal = False):
     for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_JOBS_PATH, JOBS_COUNTER_PATH, USER_PATH):
         try:
