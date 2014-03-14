@@ -48,15 +48,13 @@ def add(client, event_root, handler_type, parents_list = None):
     trans.create(control_job_path)
     trans.pcreate(zoo.join(control_job_path, zoo.CONTROL_PARENTS), parents_list)
     trans.pcreate(zoo.join(control_job_path, zoo.CONTROL_ADDED), time.time())
-    with client.Lock(zoo.CONTROL_LOCK_PATH):
-        zoo.check_transaction("add_event", trans.commit())
+    zoo.check_transaction("add_event", trans.commit())
 
     _logger.info("Registered job %s with number %d", job_id, job_number)
     return job_id
 
 def cancel(client, job_id):
     try:
-        # XXX: There is no need to control lock
         parents_list = client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_PARENTS))
         if len(parents_list) != 0:
             raise NotRootError
@@ -69,28 +67,33 @@ def cancel(client, job_id):
 def get_jobs(client):
     return client.get_children(zoo.CONTROL_JOBS_PATH)
 
-def get_finished(client, job_id):
-    with client.Lock(zoo.CONTROL_LOCK_PATH):
-        if client.exists(zoo.join(zoo.CONTROL_JOBS_PATH, job_id)) is None:
-            raise NoJobError
-        try:
-            finished_list = [
-                client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED))
-                for task_id in client.get_children(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS))
-            ]
-        except zoo.NoNodeError:
-            return None
+def get_finished_unsafe(client, job_id):
+    control_job_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id)
+    if client.exists(control_job_path) is None:
+        raise NoJobError
+    try:
+        splitted = client.pget(zoo.join(control_job_path, zoo.CONTROL_SPLITTED))
+        finish_times_list = [
+            client.pget(zoo.join(control_job_path, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED))
+            for task_id in client.get_children(zoo.join(control_job_path, zoo.CONTROL_TASKS))
+        ]
+    except zoo.NoNodeError:
+        return None
 
-        if len(finished_list) == 0:
-            return client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_SPLITTED))
-        elif None in finished_list:
-            return None
-        else:
-            return max(finished_list)
+    if len(finish_times_list) == 0:
+        return splitted
+    if None in finish_times_list:
+        return None
+    else:
+        return max(finish_times_list)
+
+def get_finished(client, job_id):
+    with client.SingleLock(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.LOCK)):
+        return get_finished_unsafe(client, job_id)
 
 def get_info(client, job_id):
     control_job_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id)
-    with client.Lock(zoo.CONTROL_LOCK_PATH):
+    with client.SingleLock(zoo.join(control_job_path, zoo.LOCK)):
         try:
             parents_list = client.pget(zoo.join(control_job_path, zoo.CONTROL_PARENTS))
         except zoo.NoNodeError:
@@ -98,7 +101,7 @@ def get_info(client, job_id):
 
         try:
             version  = client.pget(zoo.join(control_job_path, zoo.CONTROL_VERSION))
-            splitted = client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_SPLITTED))
+            splitted = client.pget(zoo.join(control_job_path, zoo.CONTROL_SPLITTED))
             tasks_list = client.get_children(zoo.join(control_job_path, zoo.CONTROL_TASKS))
         except zoo.NoNodeError:
             version = None

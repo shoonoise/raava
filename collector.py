@@ -79,16 +79,17 @@ class CollectorThread(application.Thread):
             if self._stop_flag:
                 break
 
+            lock = self._client.SingleLock(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.LOCK))
+            if not lock.try_acquire():
+                continue
+
             try:
-                finished = events.get_finished(self._client, job_id)
+                finished = events.get_finished_unsafe(self._client, job_id) # XXX: We have own lock ^^^
                 if finished is None or finished + self._garbage_lifetime > time.time():
                     continue
             except events.NoJobError:
                 continue
 
-            lock = self._client.SingleLock(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.LOCK))
-            if not lock.try_acquire():
-                continue
             self._remove_control(lock, job_id)
 
     ###
@@ -148,12 +149,11 @@ class CollectorThread(application.Thread):
                     zoo.LOCK,
                 ):
                 trans.delete(zoo.join(control_job_path, node))
-            with self._client.Lock(zoo.CONTROL_LOCK_PATH):
-                cancel_path = zoo.join(control_job_path, zoo.CONTROL_CANCEL)
-                if self._client.exists(cancel_path) is not None:
-                    trans.delete(cancel_path)
-                trans.delete(zoo.join(control_job_path))
-                zoo.check_transaction("remove_control", trans.commit())
+            cancel_path = zoo.join(control_job_path, zoo.CONTROL_CANCEL)
+            if self._client.exists(cancel_path) is not None:
+                trans.delete(cancel_path)
+            trans.delete(zoo.join(control_job_path))
+            zoo.check_transaction("remove_control", trans.commit())
             _logger.info("Control removed: %s", job_id)
         except (zoo.NoNodeError, zoo.TransactionError):
             _logger.error("Cannot remove control", exc_info=True)

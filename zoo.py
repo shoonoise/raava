@@ -5,9 +5,7 @@
 
     /input           # FastQueue(); Queue in which to place the data from events.add().
 
-    /control         # Lock(); Temporary tasks data, counters and the control interface.
-    /control/lock    # Global lock for the control interface. Used in events.get_info(),
-                     # get_finished() to obtain consistent data about jobs.
+    /control         # A temporary data of tasks, counters and the control interface.
 
     /control/jobs/<job_uuid>             # Job data.
     /control/jobs/<job_uuid>/lock        # SingleLock(); This lock is used by collector when searching finished tasks.
@@ -80,7 +78,6 @@ CONTROL_TASK_STATUS    = "status"
 CONTROL_TASK_STACK     = "stack"
 CONTROL_TASK_EXC       = "exc"
 CONTROL_CANCEL         = "cancel"
-CONTROL_LOCK_PATH      = join(CONTROL_PATH, LOCK)
 
 READY_JOB_ID   = INPUT_JOB_ID
 READY_TASK_ID  = "task_id"
@@ -134,9 +131,6 @@ def init(client, fatal = False):
     # the right tree was set up in advance.
     client.FastQueue(INPUT_PATH)._ensure_paths() # pylint: disable=W0212
     client.FastQueue(READY_PATH)._ensure_paths() # pylint: disable=W0212
-
-    # To Lock() to do it is not necessary. This line is added to show the location in node structure.
-    client.Lock(CONTROL_LOCK_PATH)._ensure_path() # pylint: disable=W0212
 
 def drop(client, fatal = False):
     for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_PATH, CORE_PATH, USER_PATH):
@@ -221,6 +215,8 @@ class IncrementalCounter:
         return value
 
 class FastQueue(kazoo.recipe.queue.BaseQueue):
+    # https://zookeeper.apache.org/doc/r3.1.2/recipes.html#sc_recipes_Queues
+
     prefix = "entry-"
 
     def __init__(self, *args, **kwargs):
