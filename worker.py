@@ -39,7 +39,7 @@ class WorkerThread(application.Thread):
         application.Thread.__init__(self, name="Worker::{workers:03d}".format(workers=_workers), **kwargs_dict)
 
         self._rules_path = rules_path
-        self._ready_queue = self._client.AbortableLockingQueue(zoo.READY_PATH)
+        self._ready_queue = self._client.FastQueue(zoo.READY_PATH)
         self._client_lock = threading.Lock()
         self._threads_dict = {}
         self._stop_flag = False
@@ -49,7 +49,6 @@ class WorkerThread(application.Thread):
 
     def stop(self):
         self._stop_flag = True
-        self._ready_queue.abort_get()
         for task_dict in self._threads_dict.values():
             task_dict[_TASK_THREAD].stop()
 
@@ -70,9 +69,9 @@ class WorkerThread(application.Thread):
             data = self._ready_queue.get()
             self._cleanup()
             if data is None:
+                time.sleep(0.1) # FIXME: Add interruptable wait()
                 continue
             self._run_task(pickle.loads(data))
-            self._ready_queue.consume()
 
     def _run_task(self, ready_dict):
         job_id = ready_dict[zoo.READY_JOB_ID]
@@ -102,6 +101,7 @@ class WorkerThread(application.Thread):
             ):
             trans.pset(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, node), value)
         trans.create(lock_path, ephemeral=True) # XXX: Acquired SingleLock()
+        self._ready_queue.consume(trans)
         zoo.check_transaction("init_task", trans.commit())
 
         task_thread = _TaskThread(parents_list, job_id, task_id, handler, state, self._controller, self._saver)

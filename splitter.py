@@ -21,7 +21,8 @@ class SplitterThread(application.Thread):
         application.Thread.__init__(self, name="Splitter::{splitters:03d}".format(splitters=_splitters), **kwargs_dict)
 
         self._loader = loader
-        self._input_queue = self._client.AbortableLockingQueue(zoo.INPUT_PATH)
+        self._input_queue = self._client.FastQueue(zoo.INPUT_PATH)
+        self._ready_queue = self._client.FastQueue(zoo.READY_PATH)
         self._stop_flag = False
 
 
@@ -38,9 +39,9 @@ class SplitterThread(application.Thread):
         while not self._stop_flag:
             data = self._input_queue.get()
             if data is None :
+                time.sleep(0.1) # FIXME: Add interruptable wait()
                 continue
             self._split_input(pickle.loads(data))
-            self._input_queue.consume()
 
     def _split_input(self, input_dict):
         job_id = input_dict[zoo.INPUT_JOB_ID]
@@ -68,7 +69,7 @@ class SplitterThread(application.Thread):
                 ):
                 trans.pcreate(zoo.join(job_path, zoo.CONTROL_TASKS, task_id, node), value)
 
-            trans.lq_put(zoo.READY_PATH, pickle.dumps({
+            self._ready_queue.put(trans, pickle.dumps({
                     zoo.READY_JOB_ID:  job_id,
                     zoo.READY_TASK_ID: task_id,
                     zoo.READY_HANDLER: self._make_handler_pickle(handler, input_dict[zoo.INPUT_EVENT]),
@@ -76,6 +77,7 @@ class SplitterThread(application.Thread):
                 }))
             _logger.info("... splitting %s --> %s; handler: %s.%s", job_id, task_id, handler.__module__, handler.__name__)
 
+        self._input_queue.consume(trans)
         zoo.check_transaction("split_input", trans.commit())
         _logger.info("Split of %s successfully completed", job_id)
 

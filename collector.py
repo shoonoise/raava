@@ -23,6 +23,8 @@ class CollectorThread(application.Thread):
         self._delay = delay
         self._recycled_priority = recycled_priority
         self._garbage_lifetime = garbage_lifetime
+
+        self._ready_queue = self._client.FastQueue(zoo.READY_PATH)
         self._stop_flag = False
 
 
@@ -97,7 +99,7 @@ class CollectorThread(application.Thread):
         trans = self._client.transaction()
         trans.delete(zoo.join(zoo.RUNNING_PATH, task_id, zoo.LOCK))
         trans.delete(zoo.join(zoo.RUNNING_PATH, task_id))
-        trans.lq_put(zoo.READY_PATH, pickle.dumps({
+        self._ready_queue.put(trans, pickle.dumps({
                 zoo.READY_JOB_ID:  job_id,
                 zoo.READY_TASK_ID: task_id,
                 zoo.READY_HANDLER: running_dict[zoo.RUNNING_HANDLER],
