@@ -48,7 +48,7 @@ def add(client, event_root, handler_type, parents_list = None):
     trans.create(control_job_path)
     trans.pcreate(zoo.join(control_job_path, zoo.CONTROL_PARENTS), parents_list)
     trans.pcreate(zoo.join(control_job_path, zoo.CONTROL_ADDED), time.time())
-    zoo.check_transaction("add_event", trans.commit())
+    trans.commit_and_check("add_event")
 
     _logger.info("Registered job %s with number %d", job_id, job_number)
     return job_id

@@ -145,25 +145,6 @@ def drop(client, fatal = False):
                 raise
 
 
-###
-def check_transaction(name, results, pairs = None):
-    ok = True
-    for (index, result) in enumerate(results):
-        if isinstance(result, Exception):
-            ok = False
-            if pairs is not None:
-                _logger.error("Failed the part of transaction \"%s\": %s=%s; err=%s",
-                    name,
-                    pairs[index][0], # Node
-                    pairs[index][1], # Data
-                    result.__class__.__name__,
-                )
-    if not ok:
-        if pairs is None:
-            _logger.error("Failed transaction \"%s\": %s", name, results)
-        raise TransactionError("Failed transaction: %s" % (name))
-
-
 ##### Public classes #####
 class SingleLock:
     def __init__(self, client, path):
@@ -278,6 +259,16 @@ class TransactionRequest(kazoo.client.TransactionRequest):
 
     def pcreate(self, path, value):
         return self.create(path, pickle.dumps(value))
+
+    def commit_and_check(self, name="unnamed"):
+        results = self.commit()
+        ok = all([ # No exceptions!
+                not isinstance(result, Exception)
+                for result in results
+            ])
+        if not ok:
+            _logger.error("Failed transaction \"%s\": %s", name, results)
+            raise TransactionError("Failed transaction: {}".format(name))
 
 class Client(kazoo.client.KazooClient): # pylint: disable=R0904
     def __init__(self, *args, **kwargs):

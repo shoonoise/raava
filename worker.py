@@ -102,7 +102,7 @@ class WorkerThread(application.Thread):
             trans.pset(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, node), value)
         trans.create(lock_path, ephemeral=True) # XXX: Acquired SingleLock()
         self._ready_queue.consume(trans)
-        zoo.check_transaction("init_task", trans.commit())
+        trans.commit_and_check("init_task")
 
         task_thread = _TaskThread(parents_list, job_id, task_id, handler, state, self._controller, self._saver)
         self._threads_dict[task_id] = {
@@ -160,7 +160,7 @@ class WorkerThread(application.Thread):
         trans.pset(zoo.join(control_task_path, zoo.CONTROL_TASK_EXC), exc)
 
         try:
-            zoo.check_transaction("saver", trans.commit())
+            trans.commit_and_check("saver")
         except zoo.TransactionError:
             _logger.exception("saver error, current task has been dropped")
             raise

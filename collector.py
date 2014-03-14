@@ -108,7 +108,7 @@ class CollectorThread(application.Thread):
             }))
         trans.pset(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_RECYCLED), time.time())
         try:
-            zoo.check_transaction("push_back_running", trans.commit())
+            trans.commit_and_check("push_back_running")
             _logger.info("Pushed back: %s", task_id)
         except zoo.TransactionError:
             _logger.exception("Cannot push-back running")
@@ -118,7 +118,7 @@ class CollectorThread(application.Thread):
         trans.delete(zoo.join(zoo.RUNNING_PATH, task_id, zoo.LOCK))
         trans.delete(zoo.join(zoo.RUNNING_PATH, task_id))
         try:
-            zoo.check_transaction("remove_running", trans.commit())
+            trans.commit_and_check("remove_running")
             _logger.info("Running removed: %s", task_id)
         except zoo.TransactionError:
             _logger.exception("Cannot remove running")
@@ -153,7 +153,7 @@ class CollectorThread(application.Thread):
             if self._client.exists(cancel_path) is not None:
                 trans.delete(cancel_path)
             trans.delete(zoo.join(control_job_path))
-            zoo.check_transaction("remove_control", trans.commit())
+            trans.commit_and_check("remove_control")
             _logger.info("Control removed: %s", job_id)
         except (zoo.NoNodeError, zoo.TransactionError):
             _logger.error("Cannot remove control", exc_info=True)

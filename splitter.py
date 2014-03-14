@@ -78,7 +78,7 @@ class SplitterThread(application.Thread):
             _logger.info("... splitting %s --> %s; handler: %s.%s", job_id, task_id, handler.__module__, handler.__name__)
 
         self._input_queue.consume(trans)
-        zoo.check_transaction("split_input", trans.commit())
+        trans.commit_and_check("split_input")
         _logger.info("Split of %s successfully completed", job_id)
 
     def _make_handler_pickle(self, handler, event_root):
