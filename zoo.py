@@ -126,12 +126,6 @@ def init(client, fatal = False):
             if fatal:
                 raise
 
-    # Some of our code does not use the API of FastQueue(), and puts the data in the queue by using
-    # transactions. Because transactions can not do CAS (to prepare the tree nodes), we must be sure that
-    # the right tree was set up in advance.
-    client.FastQueue(INPUT_PATH)._ensure_paths() # pylint: disable=W0212
-    client.FastQueue(READY_PATH)._ensure_paths() # pylint: disable=W0212
-
 def drop(client, fatal = False):
     for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_PATH, CORE_PATH, USER_PATH):
         try:
@@ -214,43 +208,40 @@ class IncrementalCounter:
             self._client.pset(self._path, value + 1)
         return value
 
-class FastQueue(kazoo.recipe.queue.BaseQueue):
-    # https://zookeeper.apache.org/doc/r3.1.2/recipes.html#sc_recipes_Queues
+class FastQueue:
+    # This class based on the recipe for the queue from here:
+    #   https://zookeeper.apache.org/doc/r3.1.2/recipes.html#sc_recipes_Queues
+    # XXX: This class does not save items order on failure (when consume() has not been called).
+    # This behaviour is acceptable for our purposes.
 
-    prefix = "entry-"
-
-    def __init__(self, *args, **kwargs):
-        kazoo.recipe.queue.BaseQueue.__init__(self, *args, **kwargs)
+    def __init__(self, client, path):
+        # XXX: We do not inherit the class kazoo.recipe.queue.BaseQueue, because we have nothing from him to use.
+        self._client = client
+        self._path = path
         self._children = []
         self._last = None
-        self._ensure_paths() # Only here
 
 
     ### Public ###
 
     def put(self, trans, value, priority=100):
-        self._check_put_arguments(value, priority)
-        path = "{path}/{prefix}{priority:03d}-".format(
-            path=self.path,
-            prefix=self.prefix,
+        path = "{path}/entry-{priority:03d}-".format(
+            path=self._path,
             priority=priority,
         )
         trans.create(path, value, sequence=True)
-
-    ###
 
     def get(self):
         # FIXME: need children watcher
         if self._last is not None:
             self._children.pop(0)
             self._last = None
-        self._ensure_paths()
-        return self.client.retry(self._inner_get)
+        return self._client.retry(self._inner_get)
 
     def consume(self, trans):
         assert self._last is not None, "Required get()"
-        trans.delete(join(self.path, self._last, LOCK))
-        trans.delete(join(self.path, self._last))
+        trans.delete(join(self._path, self._last, LOCK))
+        trans.delete(join(self._path, self._last))
 
 
     ### Private ###
@@ -258,21 +249,21 @@ class FastQueue(kazoo.recipe.queue.BaseQueue):
     def _inner_get(self):
         assert self._last is None, "Required consume() before a new get()"
         if len(self._children) == 0:
-            self._children = self.client.retry(self.client.get_children, self.path)
+            self._children = self._client.retry(self._client.get_children, self._path)
             self._children = list(sorted(self._children))
         if len(self._children) == 0:
             return None
 
         name = self._children[0]
-        path = join(self.path, name)
+        path = join(self._path, name)
         try:
-            self.client.create(join(path, LOCK), ephemeral=True)
+            self._client.create(join(path, LOCK), ephemeral=True)
         except (NoNodeError, NodeExistsError):
             self._children.pop(0) # FIXME: need a watcher
             raise kazoo.retry.ForceRetryError
         self._last = name
 
-        return self.client.get(path)[0]
+        return self._client.get(path)[0]
 
 class Client(kazoo.client.KazooClient): # pylint: disable=R0904
     def __init__(self, *args, **kwargs):
