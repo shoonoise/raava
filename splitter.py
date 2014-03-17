@@ -51,34 +51,31 @@ class SplitterThread(application.Thread):
 
         job_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id)
 
-        trans = self._client.transaction()
-        trans.pcreate(zoo.join(job_path, zoo.CONTROL_VERSION), head)
-        trans.pcreate(zoo.join(job_path, zoo.CONTROL_SPLITTED), time.time())
-        trans.create(zoo.join(job_path, zoo.CONTROL_TASKS))
+        with self._client.transaction("split_input") as trans:
+            trans.pcreate(zoo.join(job_path, zoo.CONTROL_VERSION), head)
+            trans.pcreate(zoo.join(job_path, zoo.CONTROL_SPLITTED), time.time())
+            trans.create(zoo.join(job_path, zoo.CONTROL_TASKS))
+            for handler in handlers_set:
+                task_id = str(uuid.uuid4())
+                trans.create(zoo.join(job_path, zoo.CONTROL_TASKS, task_id))
+                for (node, value) in (
+                        (zoo.CONTROL_TASK_CREATED,  None),
+                        (zoo.CONTROL_TASK_RECYCLED, None),
+                        (zoo.CONTROL_TASK_FINISHED, None),
+                        (zoo.CONTROL_TASK_STATUS,   zoo.TASK_STATUS.NEW),
+                        (zoo.CONTROL_TASK_STACK,    None),
+                        (zoo.CONTROL_TASK_EXC,      None),
+                    ):
+                    trans.pcreate(zoo.join(job_path, zoo.CONTROL_TASKS, task_id, node), value)
+                self._ready_queue.put(trans, pickle.dumps({
+                        zoo.READY_JOB_ID:  job_id,
+                        zoo.READY_TASK_ID: task_id,
+                        zoo.READY_HANDLER: self._make_handler_pickle(handler, input_dict[zoo.INPUT_EVENT]),
+                        zoo.READY_STATE:   None,
+                    }))
+                _logger.info("... splitting %s --> %s; handler: %s.%s", job_id, task_id, handler.__module__, handler.__name__)
+            self._input_queue.consume(trans)
 
-        for handler in handlers_set:
-            task_id = str(uuid.uuid4())
-            trans.create(zoo.join(job_path, zoo.CONTROL_TASKS, task_id))
-            for (node, value) in (
-                    (zoo.CONTROL_TASK_CREATED,  None),
-                    (zoo.CONTROL_TASK_RECYCLED, None),
-                    (zoo.CONTROL_TASK_FINISHED, None),
-                    (zoo.CONTROL_TASK_STATUS,   zoo.TASK_STATUS.NEW),
-                    (zoo.CONTROL_TASK_STACK,    None),
-                    (zoo.CONTROL_TASK_EXC,      None),
-                ):
-                trans.pcreate(zoo.join(job_path, zoo.CONTROL_TASKS, task_id, node), value)
-
-            self._ready_queue.put(trans, pickle.dumps({
-                    zoo.READY_JOB_ID:  job_id,
-                    zoo.READY_TASK_ID: task_id,
-                    zoo.READY_HANDLER: self._make_handler_pickle(handler, input_dict[zoo.INPUT_EVENT]),
-                    zoo.READY_STATE:   None,
-                }))
-            _logger.info("... splitting %s --> %s; handler: %s.%s", job_id, task_id, handler.__module__, handler.__name__)
-
-        self._input_queue.consume(trans)
-        trans.commit_and_check("split_input")
         _logger.info("Split of %s successfully completed", job_id)
 
     def _make_handler_pickle(self, handler, event_root):

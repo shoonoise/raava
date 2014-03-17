@@ -265,21 +265,25 @@ class TransactionalQueue:
         return self._client.get(path)[0]
 
 class TransactionRequest(kazoo.client.TransactionRequest):
+    def __init__(self, client, name):
+        kazoo.client.TransactionRequest.__init__(self, client)
+        self._name = name
+
     def pset(self, path, value):
         return self.set_data(path, pickle.dumps(value))
 
     def pcreate(self, path, value):
         return self.create(path, pickle.dumps(value))
 
-    def commit_and_check(self, name="unnamed"):
+    def __exit__(self, exc_type, exc_value, traceback):
         results = self.commit()
         ok = all([ # No exceptions!
                 not isinstance(result, Exception)
                 for result in results
             ])
         if not ok:
-            _logger.error("Failed transaction \"%s\": %s", name, results)
-            raise TransactionError("Failed transaction: {}".format(name))
+            _logger.error("Failed transaction \"%s\": %s", self._name, results)
+            raise TransactionError("Failed transaction: {}".format(self._name))
 
 class Client(kazoo.client.KazooClient): # pylint: disable=R0904
     def __init__(self, *args, **kwargs):
@@ -297,6 +301,6 @@ class Client(kazoo.client.KazooClient): # pylint: disable=R0904
     def pcreate(self, path, value):
         return self.create(path, pickle.dumps(value))
 
-    def transaction(self):
-        return TransactionRequest(self)
+    def transaction(self, name): # pylint: disable=W0221
+        return TransactionRequest(self, name)
 
