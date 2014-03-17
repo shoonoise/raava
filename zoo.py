@@ -166,9 +166,11 @@ class SingleLock:
     @contextlib.contextmanager
     def try_context(self, fatal=False):
         retval = ( self if self.try_acquire(fatal) else None )
-        yield retval
-        if retval is not None:
-            self.release()
+        try:
+            yield retval
+        finally:
+            if retval is not None:
+                self.release()
 
     def acquire(self, fatal = True):
         while not self.try_acquire(fatal):
