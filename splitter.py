@@ -21,8 +21,8 @@ class SplitterThread(application.Thread):
         application.Thread.__init__(self, name="Splitter::{splitters:03d}".format(splitters=_splitters), **kwargs_dict)
 
         self._loader = loader
-        self._input_queue = self._client.FastQueue(zoo.INPUT_PATH)
-        self._ready_queue = self._client.FastQueue(zoo.READY_PATH)
+        self._input_queue = self._client.TransactionalQueue(zoo.INPUT_PATH)
+        self._ready_queue = self._client.TransactionalQueue(zoo.READY_PATH)
         self._stop_flag = False
 
 

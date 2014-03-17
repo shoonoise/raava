@@ -3,7 +3,7 @@
 
     Nodes may be in an arbitrary chroot.
 
-    /input           # FastQueue(); Queue in which to place the data from events.add().
+    /input           # TransactionalQueue(); Queue in which to place the data from events.add().
 
     /control         # A temporary data of tasks, counters and the control interface.
 
@@ -24,7 +24,7 @@
     /control/jobs/<job_uuid>/tasks/<task_uuid>/stack       # Stack of the task.
     /control/jobs/<job_uuid>/tasks/<task_uuid>/exc         # If the handler is crashed, contains an exception as string.
 
-    /ready    # FastQueue(); Queue for worker with the ready to run tasks.
+    /ready    # TransactionalQueue(); Queue for worker with the ready to run tasks.
 
     /running
     /running/<task_uuid>         # Here are details of running tasks: a reference to the function, the pickled stack,
@@ -182,7 +182,7 @@ class SingleLock:
 
     def release(self, trans=None):
         try:
-            dest = ( trans or self._client) # Prefer transaction
+            dest = ( trans or self._client ) # Prefer transaction
             dest.delete(self._path)
         except NoNodeError:
             pass
@@ -207,7 +207,7 @@ class IncrementalCounter:
             self._client.pset(self._path, value + 1)
         return value
 
-class FastQueue:
+class TransactionalQueue:
     # This class based on the recipe for the queue from here:
     #   https://zookeeper.apache.org/doc/r3.1.2/recipes.html#sc_recipes_Queues
     # XXX: This class does not save items order on failure (when consume() has not been called).
@@ -285,7 +285,7 @@ class Client(kazoo.client.KazooClient): # pylint: disable=R0904
     def __init__(self, *args, **kwargs):
         self.SingleLock = functools.partial(SingleLock, self)
         self.IncrementalCounter = functools.partial(IncrementalCounter, self)
-        self.FastQueue = functools.partial(FastQueue, self)
+        self.TransactionalQueue = functools.partial(TransactionalQueue, self)
         kazoo.client.KazooClient.__init__(self, *args, **kwargs)
 
     def pget(self, path):

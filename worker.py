@@ -39,7 +39,7 @@ class WorkerThread(application.Thread):
         application.Thread.__init__(self, name="Worker::{workers:03d}".format(workers=_workers), **kwargs_dict)
 
         self._rules_path = rules_path
-        self._ready_queue = self._client.FastQueue(zoo.READY_PATH)
+        self._ready_queue = self._client.TransactionalQueue(zoo.READY_PATH)
         self._client_lock = threading.Lock()
         self._threads_dict = {}
         self._stop_flag = False

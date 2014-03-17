@@ -44,7 +44,7 @@ def add(client, event_root, handler_type, parents_list = None):
 
     control_job_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id)
     trans = client.transaction()
-    client.FastQueue(zoo.INPUT_PATH).put(trans, pickle.dumps(input_dict))
+    client.TransactionalQueue(zoo.INPUT_PATH).put(trans, pickle.dumps(input_dict))
     trans.create(control_job_path)
     trans.pcreate(zoo.join(control_job_path, zoo.CONTROL_PARENTS), parents_list)
     trans.pcreate(zoo.join(control_job_path, zoo.CONTROL_ADDED), time.time())

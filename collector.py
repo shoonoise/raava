@@ -24,7 +24,7 @@ class CollectorThread(application.Thread):
         self._recycled_priority = recycled_priority
         self._garbage_lifetime = garbage_lifetime
 
-        self._ready_queue = self._client.FastQueue(zoo.READY_PATH)
+        self._ready_queue = self._client.TransactionalQueue(zoo.READY_PATH)
         self._stop_flag = False
 
 
@@ -59,9 +59,8 @@ class CollectorThread(application.Thread):
                 # XXX: Tasks without jobs
                 lock = self._client.SingleLock(task_lock_path)
                 with lock.try_context() as lock:
-                    if lock is None:
-                        continue
-                    self._remove_running(lock, task_id)
+                    if lock is not None:
+                        self._remove_running(lock, task_id)
                 continue
 
             if max(created or 0, recycled or 0) + self._delay > time.time():
@@ -69,12 +68,11 @@ class CollectorThread(application.Thread):
 
             lock = self._client.SingleLock(task_lock_path)
             with lock.try_context() as lock:
-                if lock is None:
-                    continue
-                if self._client.pget(zoo.join(control_task_path, zoo.CONTROL_TASK_FINISHED)) is None:
-                    self._push_back_running(lock, task_id)
-                else:
-                    self._remove_running(lock, task_id)
+                if lock is not None:
+                    if self._client.pget(zoo.join(control_task_path, zoo.CONTROL_TASK_FINISHED)) is None:
+                        self._push_back_running(lock, task_id)
+                    else:
+                        self._remove_running(lock, task_id)
 
     def _poll_control(self):
         for job_id in self._client.get_children(zoo.CONTROL_JOBS_PATH):
@@ -83,15 +81,14 @@ class CollectorThread(application.Thread):
 
             lock = self._client.SingleLock(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.LOCK))
             with lock.try_context() as lock:
-                if lock is None:
-                    continue
-                try:
-                    finished = events.get_finished_unsafe(self._client, job_id) # XXX: We have own lock ^^^
-                    if finished is None or finished + self._garbage_lifetime > time.time():
+                if lock is not None:
+                    try:
+                        finished = events.get_finished_unsafe(self._client, job_id) # XXX: We have own lock ^^^
+                        if finished is None or finished + self._garbage_lifetime > time.time():
+                            continue
+                    except events.NoJobError:
                         continue
-                except events.NoJobError:
-                    continue
-                self._remove_control(lock, job_id)
+                    self._remove_control(lock, job_id)
 
     ###
 
