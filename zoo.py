@@ -41,6 +41,7 @@
 import pickle
 import functools
 import threading
+import contextlib
 import logging
 
 import kazoo.client
@@ -122,7 +123,7 @@ def close(client):
 
 
 ###
-def init(client, fatal = False):
+def init(client, fatal=False):
     for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_JOBS_PATH, JOBS_COUNTER_PATH, USER_PATH):
         try:
             client.create(path, makepath=True)
@@ -133,7 +134,7 @@ def init(client, fatal = False):
             if fatal:
                 raise
 
-def drop(client, fatal = False):
+def drop(client, fatal=False):
     for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_PATH, CORE_PATH, USER_PATH):
         try:
             client.delete(path, recursive=True)
@@ -151,7 +152,7 @@ class SingleLock:
         self._client = client
         self._path = path
 
-    def try_acquire(self, fatal = False):
+    def try_acquire(self, fatal=False):
         try:
             self._client.create(self._path, ephemeral=True)
             return True
@@ -162,6 +163,13 @@ class SingleLock:
         except NodeExistsError:
             return False
 
+    @contextlib.contextmanager
+    def try_context(self, fatal=False):
+        retval = ( self if self.try_acquire(fatal) else None )
+        yield retval
+        if retval is not None:
+            self.release()
+
     def acquire(self, fatal = True):
         while not self.try_acquire(fatal):
             wait = threading.Event()
@@ -170,9 +178,10 @@ class SingleLock:
             if self._client.exists(self._path, watch=watcher) is not None:
                 wait.wait()
 
-    def release(self):
+    def release(self, trans=None):
         try:
-            self._client.delete(self._path)
+            dest = ( trans or self._client) # Prefer transaction
+            dest.delete(self._path)
         except NoNodeError:
             pass
 

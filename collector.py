@@ -58,21 +58,23 @@ class CollectorThread(application.Thread):
             except zoo.NoNodeError:
                 # XXX: Tasks without jobs
                 lock = self._client.SingleLock(task_lock_path)
-                if not lock.try_acquire():
-                    continue
-                self._remove_running(lock, task_id)
+                with lock.try_context() as lock:
+                    if lock is None:
+                        continue
+                    self._remove_running(lock, task_id)
                 continue
 
             if max(created or 0, recycled or 0) + self._delay > time.time():
                 continue # XXX: Do not grab the new or the respawned tasks
 
             lock = self._client.SingleLock(task_lock_path)
-            if not lock.try_acquire():
-                continue
-            if self._client.pget(zoo.join(control_task_path, zoo.CONTROL_TASK_FINISHED)) is None:
-                self._push_back_running(lock, task_id)
-            else:
-                self._remove_running(lock, task_id)
+            with lock.try_context() as lock:
+                if lock is None:
+                    continue
+                if self._client.pget(zoo.join(control_task_path, zoo.CONTROL_TASK_FINISHED)) is None:
+                    self._push_back_running(lock, task_id)
+                else:
+                    self._remove_running(lock, task_id)
 
     def _poll_control(self):
         for job_id in self._client.get_children(zoo.CONTROL_JOBS_PATH):
@@ -80,17 +82,16 @@ class CollectorThread(application.Thread):
                 break
 
             lock = self._client.SingleLock(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.LOCK))
-            if not lock.try_acquire():
-                continue
-
-            try:
-                finished = events.get_finished_unsafe(self._client, job_id) # XXX: We have own lock ^^^
-                if finished is None or finished + self._garbage_lifetime > time.time():
+            with lock.try_context() as lock:
+                if lock is None:
                     continue
-            except events.NoJobError:
-                continue
-
-            self._remove_control(lock, job_id)
+                try:
+                    finished = events.get_finished_unsafe(self._client, job_id) # XXX: We have own lock ^^^
+                    if finished is None or finished + self._garbage_lifetime > time.time():
+                        continue
+                except events.NoJobError:
+                    continue
+                self._remove_control(lock, job_id)
 
     ###
 
@@ -98,7 +99,7 @@ class CollectorThread(application.Thread):
         running_dict = self._client.pget(zoo.join(zoo.RUNNING_PATH, task_id))
         job_id = running_dict[zoo.RUNNING_JOB_ID]
         trans = self._client.transaction()
-        trans.delete(zoo.join(zoo.RUNNING_PATH, task_id, zoo.LOCK))
+        lock.release(trans)
         trans.delete(zoo.join(zoo.RUNNING_PATH, task_id))
         self._ready_queue.put(trans, pickle.dumps({
                 zoo.READY_JOB_ID:  job_id,
@@ -115,7 +116,7 @@ class CollectorThread(application.Thread):
 
     def _remove_running(self, lock, task_id):
         trans = self._client.transaction()
-        trans.delete(zoo.join(zoo.RUNNING_PATH, task_id, zoo.LOCK))
+        lock.release(trans)
         trans.delete(zoo.join(zoo.RUNNING_PATH, task_id))
         try:
             trans.commit_and_check("remove_running")
@@ -146,9 +147,9 @@ class CollectorThread(application.Thread):
                     zoo.CONTROL_TASKS,
                     zoo.CONTROL_ADDED,
                     zoo.CONTROL_SPLITTED,
-                    zoo.LOCK,
                 ):
                 trans.delete(zoo.join(control_job_path, node))
+            lock.release(trans)
             cancel_path = zoo.join(control_job_path, zoo.CONTROL_CANCEL)
             if self._client.exists(cancel_path) is not None:
                 trans.delete(cancel_path)
