@@ -86,9 +86,10 @@ class CollectorThread(application.Thread):
                         finished = events.get_finished_unsafe(self._client, job_id) # XXX: We have own lock ^^^
                         if finished is None or finished + self._garbage_lifetime > time.time():
                             continue
-                    except events.NoJobError:
-                        continue
-                    self._remove_control(lock, job_id)
+                        self._remove_control(lock, job_id)
+                        _logger.info("Control removed: %s", job_id)
+                    except (events.NoJobError, zoo.NoNodeError, zoo.TransactionError):
+                        _logger.exception("Cannot remove control")
 
     ###
 
@@ -123,33 +124,29 @@ class CollectorThread(application.Thread):
 
     def _remove_control(self, lock, job_id):
         control_job_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id)
-        try:
-            with self._client.transaction("remove_control") as trans:
-                trans.delete(zoo.join(control_job_path, zoo.CONTROL_PARENTS))
-                for task_id in self._client.get_children(zoo.join(control_job_path, zoo.CONTROL_TASKS)):
-                    for node in (
-                            zoo.CONTROL_TASK_CREATED,
-                            zoo.CONTROL_TASK_RECYCLED,
-                            zoo.CONTROL_TASK_FINISHED,
-                            zoo.CONTROL_TASK_STATUS,
-                            zoo.CONTROL_TASK_STACK,
-                            zoo.CONTROL_TASK_EXC,
-                        ):
-                        trans.delete(zoo.join(control_job_path, zoo.CONTROL_TASKS, task_id, node))
-                    trans.delete(zoo.join(control_job_path, zoo.CONTROL_TASKS, task_id))
+        with self._client.transaction("remove_control") as trans:
+            trans.delete(zoo.join(control_job_path, zoo.CONTROL_PARENTS))
+            for task_id in self._client.get_children(zoo.join(control_job_path, zoo.CONTROL_TASKS)):
                 for node in (
-                        zoo.CONTROL_VERSION,
-                        zoo.CONTROL_TASKS,
-                        zoo.CONTROL_ADDED,
-                        zoo.CONTROL_SPLITTED,
+                        zoo.CONTROL_TASK_CREATED,
+                        zoo.CONTROL_TASK_RECYCLED,
+                        zoo.CONTROL_TASK_FINISHED,
+                        zoo.CONTROL_TASK_STATUS,
+                        zoo.CONTROL_TASK_STACK,
+                        zoo.CONTROL_TASK_EXC,
                     ):
-                    trans.delete(zoo.join(control_job_path, node))
-                lock.release(trans)
-                cancel_path = zoo.join(control_job_path, zoo.CONTROL_CANCEL)
-                if self._client.exists(cancel_path) is not None:
-                    trans.delete(cancel_path)
-                trans.delete(zoo.join(control_job_path))
-            _logger.info("Control removed: %s", job_id)
-        except (zoo.NoNodeError, zoo.TransactionError):
-            _logger.exception("Cannot remove control")
+                    trans.delete(zoo.join(control_job_path, zoo.CONTROL_TASKS, task_id, node))
+                trans.delete(zoo.join(control_job_path, zoo.CONTROL_TASKS, task_id))
+            for node in (
+                    zoo.CONTROL_VERSION,
+                    zoo.CONTROL_TASKS,
+                    zoo.CONTROL_ADDED,
+                    zoo.CONTROL_SPLITTED,
+                ):
+                trans.delete(zoo.join(control_job_path, node))
+            lock.release(trans)
+            cancel_path = zoo.join(control_job_path, zoo.CONTROL_CANCEL)
+            if self._client.exists(cancel_path) is not None:
+                trans.delete(cancel_path)
+            trans.delete(zoo.join(control_job_path))
 
