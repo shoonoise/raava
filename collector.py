@@ -63,16 +63,15 @@ class CollectorThread(application.Thread):
                         self._remove_running(lock, task_id)
                 continue
 
-            if max(created or 0, recycled or 0) + self._delay > time.time():
-                continue # XXX: Do not grab the new or the respawned tasks
-
-            lock = self._client.SingleLock(task_lock_path)
-            with lock.try_context() as lock:
-                if lock is not None:
-                    if self._client.pget(zoo.join(control_task_path, zoo.CONTROL_TASK_FINISHED)) is None:
-                        self._push_back_running(lock, task_id)
-                    else:
-                        self._remove_running(lock, task_id)
+            if max(created or 0, recycled or 0) + self._delay <= time.time():
+                # Grab only old tasks
+                lock = self._client.SingleLock(task_lock_path)
+                with lock.try_context() as lock:
+                    if lock is not None:
+                        if self._client.pget(zoo.join(control_task_path, zoo.CONTROL_TASK_FINISHED)) is None:
+                            self._push_back_running(lock, task_id)
+                        else:
+                            self._remove_running(lock, task_id)
 
     def _poll_control(self):
         for job_id in self._client.get_children(zoo.CONTROL_JOBS_PATH):
@@ -84,10 +83,9 @@ class CollectorThread(application.Thread):
                 if lock is not None:
                     try:
                         finished = events.get_finished_unsafe(self._client, job_id) # XXX: We have own lock ^^^
-                        if finished is None or finished + self._garbage_lifetime > time.time():
-                            continue
-                        self._remove_control(lock, job_id)
-                        _logger.info("Control removed: %s", job_id)
+                        if finished is not None and finished + self._garbage_lifetime <= time.time():
+                            self._remove_control(lock, job_id)
+                            _logger.info("Control removed: %s", job_id)
                     except (events.NoJobError, zoo.NoNodeError, zoo.TransactionError):
                         _logger.exception("Cannot remove control")
 
