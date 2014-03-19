@@ -30,7 +30,6 @@ class SplitterThread(application.Thread):
 
     def stop(self):
         self._stop_flag = True
-        self._input_queue.abort_get()
 
 
     ### Private ###
