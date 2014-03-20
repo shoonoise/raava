@@ -66,30 +66,6 @@ def cancel(client, job_id):
 def get_jobs(client):
     return client.get_children(zoo.CONTROL_JOBS_PATH)
 
-def get_finished_unsafe(client, job_id):
-    control_job_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id)
-    if client.exists(control_job_path) is None:
-        raise NoJobError
-    try:
-        splitted = client.pget(zoo.join(control_job_path, zoo.CONTROL_SPLITTED))
-        finish_times_list = [
-            client.pget(zoo.join(control_job_path, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED))
-            for task_id in client.get_children(zoo.join(control_job_path, zoo.CONTROL_TASKS))
-        ]
-    except zoo.NoNodeError:
-        return None
-
-    if len(finish_times_list) == 0:
-        return splitted
-    if None in finish_times_list:
-        return None
-    else:
-        return max(finish_times_list)
-
-def get_finished(client, job_id):
-    with client.SingleLock(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.LOCK)):
-        return get_finished_unsafe(client, job_id)
-
 def get_info(client, job_id):
     control_job_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id)
     with client.SingleLock(zoo.join(control_job_path, zoo.LOCK)):
@@ -128,4 +104,33 @@ def get_info(client, job_id):
                 )
             }
         return info_dict
+
+
+###
+def get_finished_unsafe(client, job_id):
+    control_job_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id)
+    if client.exists(control_job_path) is None:
+        raise NoJobError
+    try:
+        splitted = client.pget(zoo.join(control_job_path, zoo.CONTROL_SPLITTED))
+        finish_times_list = [
+            client.pget(zoo.join(control_job_path, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_FINISHED))
+            for task_id in client.get_children(zoo.join(control_job_path, zoo.CONTROL_TASKS))
+        ]
+    except zoo.NoNodeError:
+        return None
+
+    if len(finish_times_list) == 0:
+        return splitted
+    if None in finish_times_list:
+        return None
+    else:
+        return max(finish_times_list)
+
+def get_finished(client, job_id):
+    with client.SingleLock(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.LOCK)):
+        return get_finished_unsafe(client, job_id)
+
+def get_events_counter(client):
+    return client.IncrementalCounter(zoo.JOBS_COUNTER_PATH).get_value()
 
