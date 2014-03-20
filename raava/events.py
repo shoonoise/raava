@@ -131,3 +131,6 @@ def get_finished(client, job_id):
     with client.SingleLock(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.LOCK)):
         return get_finished_unsafe(client, job_id)
 
+def get_events_counter(client):
+    return client.IncrementalCounter(zoo.JOBS_COUNTER_PATH).get_value()
+

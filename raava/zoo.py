@@ -198,12 +198,16 @@ class IncrementalCounter:
         self._client = client
         self._path = path
 
+    def get_value(self):
+        try:
+            value = self._client.pget(self._path)
+        except (NoNodeError, EOFError):
+            value = 0
+        return value
+
     def increment(self):
         with self._client.Lock(join(self._path, LOCK)):
-            try:
-                value = self._client.pget(self._path)
-            except (NoNodeError, EOFError):
-                value = 0
+            value = self.get_value()
             self._client.pset(self._path, value + 1)
         return value
 
