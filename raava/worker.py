@@ -21,14 +21,14 @@ _workers = 0
 
 
 ##### Public methods #####
-def make_task_builtin(method):
-    def builtin_method(*args_tuple, **kwargs_dict):
+def make_task_method(method):
+    def wrapper(*args_tuple, **kwargs_dict):
         current_thread = threading.current_thread()
         assert isinstance(current_thread, _TaskThread), "Called %s.%s not from a task!" % (method.__module__, method.__name__)
         task = current_thread.get_task() # pylint: disable=E1103
         del current_thread
         return method(task, *args_tuple, **kwargs_dict)
-    return builtin_method
+    return wrapper
 
 
 ##### Public classes #####
