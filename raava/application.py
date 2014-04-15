@@ -120,7 +120,11 @@ class Application:
                     _logger.info("Dead worker %s has %d unfinished children", thread.name, alive_children)
 
     def _respawn_threads(self):
-        if self._respawns + len(self._threads) >= self._die_after:
+        assert self._threads <= self._workers
+        if len(self._threads) == self._workers:
+            return
+
+        if self._respawns >= self._die_after + self._workers:
             _logger.warn("Reached the respawn maximum")
             self._quit()
             return
