@@ -124,7 +124,7 @@ class Application:
         if len(self._threads) == self._workers:
             return
 
-        if self._respawns >= self._die_after + self._workers:
+        if self._die_after is not None and self._respawns >= self._die_after + self._workers:
             _logger.warn("Reached the respawn maximum")
             self._quit()
             return
