@@ -108,11 +108,11 @@ class TransactionError(KazooException):
 
 
 ##### Public methods #####
-def connect(zoo_nodes, timeout, randomize_hosts, chroot):
+def connect(zoo_nodes, timeout, start_timeout, randomize_hosts, chroot):
     hosts = ",".join(zoo_nodes)
     client = Client(hosts=hosts, timeout=timeout, randomize_hosts=randomize_hosts)
     client.chroot = chroot
-    client.start()
+    client.start(start_timeout)
     _logger.info("Started zookeeper client on hosts: %s", hosts)
     return client
 
