@@ -34,7 +34,7 @@ class Thread(threading.Thread):
         zoo.close(self._client)
 
 class Application:
-    def __init__(self, thread_class, workers, die_after, quit_wait, interval, **kwargs_dict):
+    def __init__(self, thread_class, workers, die_after, quit_wait, interval, handle_signals, **kwargs_dict):
         self._thread_class = thread_class
         self._workers = workers
         self._die_after = die_after
@@ -46,11 +46,12 @@ class Application:
 
         self._stop_flag = False
         self._signal_handlers_dict = {}
-        for (signum, handler) in (
-                (signal.SIGTERM, self._quit),
-                (signal.SIGINT,  self._quit),
-            ):
-            self.set_signal_handler(signum, handler)
+        if handle_signals:
+            for (signum, handler) in (
+                    (signal.SIGTERM, self._quit),
+                    (signal.SIGINT,  self._quit),
+                ):
+                self.set_signal_handler(signum, handler)
         self._threads = []
         self._respawns = 0
 
