@@ -121,7 +121,7 @@ class Application:
                     _logger.info("Dead worker %s has %d unfinished children", thread.name, alive_children)
 
     def _respawn_threads(self):
-        assert self._threads <= self._workers
+        assert len(self._threads) <= self._workers
         if len(self._threads) == self._workers:
             return
 
