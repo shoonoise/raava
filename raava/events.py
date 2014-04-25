@@ -63,6 +63,9 @@ def cancel(client, job_id):
     except zoo.NodeExistsError:
         pass
 
+def get_input_size(client):
+    return len(client.TransactionalQueue(zoo.INPUT_PATH))
+
 def get_jobs(client):
     return client.get_children(zoo.CONTROL_JOBS_PATH)
 
