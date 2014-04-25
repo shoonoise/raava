@@ -247,6 +247,13 @@ class TransactionalQueue:
         trans.delete(join(self._path, self._last))
 
 
+    ### Protected ###
+
+    def __len__(self):
+        stat = self._client.retry(self._client.get, self._path)[1]
+        return stat.children_count
+
+
     ### Private ###
 
     def _inner_get(self):
