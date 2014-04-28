@@ -108,8 +108,8 @@ class Loader:
                     self._load_handlers(head)
                 finally:
                     self._lock.release()
-        handlers_dict = self._head_cache
-        return (handlers_dict[_HEAD], handlers_dict[_HANDLERS])
+        handlers = self._head_cache
+        return (handlers[_HEAD], handlers[_HANDLERS])
 
 
     ### Private ###
@@ -119,7 +119,7 @@ class Loader:
         assert os.access(head_path, os.F_OK)
 
         _logger.debug("Loading rules from head: %s; root: %s", head, self._path)
-        handlers_dict = { name: set() for name in self._mains }
+        handlers = { name: set() for name in self._mains }
         for (root_path, _, files) in os.walk(head_path):
             rel_path = root_path.replace(head_path, os.path.basename(head_path))
             for file_name in files:
@@ -135,7 +135,7 @@ class Loader:
                     _logger.exception("Cannot import module \"%s\" (path %s)", module_name, os.path.join(root_path, file_name))
                     continue
 
-                for (handler_type, collection) in handlers_dict.items():
+                for (handler_type, collection) in handlers.items():
                     handler = getattr(module, handler_type, None)
                     if handler is not None:
                         _logger.debug("Loaded %s handler from %s", handler_type, module)
@@ -144,7 +144,7 @@ class Loader:
 
         self._head_cache = {
             _HEAD:     head,
-            _HANDLERS: handlers_dict,
+            _HANDLERS: handlers,
         }
 
 
