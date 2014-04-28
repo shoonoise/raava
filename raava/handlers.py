@@ -122,6 +122,15 @@ class Loader:
         handlers = { name: set() for name in self._mains }
         for (root_path, _, files) in os.walk(head_path, followlinks=True):
             rel_path = root_path.replace(head_path, os.path.basename(head_path))
+
+            ignore_dir = False
+            for dir_name in filter(None, rel_path.split(os.path.sep)):
+                if dir_name[0] in (".", "_"):
+                    ignore_dir = True
+                    break
+            if ignore_dir:
+                continue
+
             for file_name in files:
                 if file_name[0] in (".", "_") or not file_name.lower().endswith(".py"):
                     continue
