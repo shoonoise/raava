@@ -120,7 +120,7 @@ class Loader:
 
         _logger.debug("Loading rules from head: %s; root: %s", head, self._path)
         handlers = { name: set() for name in self._mains }
-        for (root_path, _, files) in os.walk(head_path):
+        for (root_path, _, files) in os.walk(head_path, followlinks=True):
             rel_path = root_path.replace(head_path, os.path.basename(head_path))
             for file_name in files:
                 if file_name[0] in (".", "_") or not file_name.lower().endswith(".py"):
