@@ -115,6 +115,18 @@ class Loader:
     ### Private ###
 
     def _load_handlers(self, head):
+        """
+            Function recursively walks the directory specified in the "head".
+            Subdirectories and files whose names begin with a "." or "_" are ignored.
+            Each module is imported separately from the others, and it is sought to one of the entry points identified in the "self._mains".
+
+            Example:
+                /rules
+                /rules/_base/... # Ignored
+                /rules/test/test_rule.py # Loaded
+                /rules/test/_foo.py # Ignored
+        """
+
         head_path = os.path.join(self._path, head)
         assert os.access(head_path, os.F_OK)
 
