@@ -108,20 +108,41 @@ class Loader:
                     self._load_handlers(head)
                 finally:
                     self._lock.release()
-        handlers_dict = self._head_cache
-        return (handlers_dict[_HEAD], handlers_dict[_HANDLERS])
+        handlers = self._head_cache
+        return (handlers[_HEAD], handlers[_HANDLERS])
 
 
     ### Private ###
 
     def _load_handlers(self, head):
+        """
+            Function recursively walks the directory specified in the "head".
+            Subdirectories and files whose names begin with a "." or "_" are ignored.
+            Each module is imported separately from the others, and it is sought to one of the entry points identified in the "self._mains".
+
+            Example:
+                /rules
+                /rules/_base/... # Ignored
+                /rules/test/test_rule.py # Loaded
+                /rules/test/_foo.py # Ignored
+        """
+
         head_path = os.path.join(self._path, head)
         assert os.access(head_path, os.F_OK)
 
         _logger.debug("Loading rules from head: %s; root: %s", head, self._path)
-        handlers_dict = { name: set() for name in self._mains }
-        for (root_path, _, files) in os.walk(head_path):
+        handlers = { name: set() for name in self._mains }
+        for (root_path, _, files) in os.walk(head_path, followlinks=True):
             rel_path = root_path.replace(head_path, os.path.basename(head_path))
+
+            ignore_dir = False
+            for dir_name in filter(None, rel_path.split(os.path.sep)):
+                if dir_name[0] in (".", "_"):
+                    ignore_dir = True
+                    break
+            if ignore_dir:
+                continue
+
             for file_name in files:
                 if file_name[0] in (".", "_") or not file_name.lower().endswith(".py"):
                     continue
@@ -135,7 +156,7 @@ class Loader:
                     _logger.exception("Cannot import module \"%s\" (path %s)", module_name, os.path.join(root_path, file_name))
                     continue
 
-                for (handler_type, collection) in handlers_dict.items():
+                for (handler_type, collection) in handlers.items():
                     handler = getattr(module, handler_type, None)
                     if handler is not None:
                         _logger.debug("Loaded %s handler from %s", handler_type, module)
@@ -144,7 +165,7 @@ class Loader:
 
         self._head_cache = {
             _HEAD:     head,
-            _HANDLERS: handlers_dict,
+            _HANDLERS: handlers,
         }
 
 
