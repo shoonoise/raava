@@ -44,7 +44,7 @@ class Application:
 
         _logger.debug("creating application. {}".format(vars(self)), extra=vars(self))
 
-        self._stop_flag = False
+        self._stop_event = threading.Event()
         self._signal_handlers_dict = {}
         if handle_signals:
             for (signum, handler) in (
@@ -68,11 +68,11 @@ class Application:
         for signum in self._signal_handlers_dict :
             signal.signal(signum, self._save_signal)
 
-        while not self._stop_flag:
+        while not self._stop_event.is_set():
             self._process_signals()
             self._cleanup_threads()
             self._respawn_threads()
-            time.sleep(self._interval)
+            self._stop_event.wait(self._interval)
 
         for thread in self._threads:
             thread.stop()
@@ -139,5 +139,5 @@ class Application:
 
     def _quit(self, signum = None, frame = None):
         _logger.info("Quitting...")
-        self._stop_flag = True
+        self._stop_event.set()
 
