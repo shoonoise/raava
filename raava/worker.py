@@ -21,12 +21,16 @@ _workers = 0
 
 
 ##### Public methods #####
-def make_task_method(method):
+def get_current_task():
+    current_thread = threading.current_thread()
+    assert isinstance(current_thread, _TaskThread), "Called not from a Raava task!"
+    task = current_thread.get_task() # pylint: disable=E1103
+    del current_thread
+    return task
+
+def make_task_method(method): # FIXME: Remove this compatibility code
     def wrapper(*args_tuple, **kwargs_dict):
-        current_thread = threading.current_thread()
-        assert isinstance(current_thread, _TaskThread), "Called %s.%s not from a task!" % (method.__module__, method.__name__)
-        task = current_thread.get_task() # pylint: disable=E1103
-        del current_thread
+        task = get_current_task()
         return method(task, *args_tuple, **kwargs_dict)
     return wrapper
 
