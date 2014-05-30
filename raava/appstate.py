@@ -29,11 +29,16 @@ def get_state(client):
 
 ##### Public classes #####
 class StateWriter:
-    def __init__(self, client, state_base):
-        self._client = client
-        self._state_path = zoo.join(zoo.STATE_PATH, state_base, "{}~{}".format(platform.uname()[1], uuid.uuid4()))
+    def __init__(self, state_base, node_name=None, process_name=None):
+        if node_name is None:
+            node_name = platform.uname()[1]
+        if process_name is None:
+            process_name = str(uuid.uuid4())
+        self._client = None
+        self._state_path = zoo.join(zoo.STATE_PATH, state_base, "{}~{}".format(node_name, process_name))
 
-    def init_instance(self):
+    def init_instance(self, client):
+        self._client = client
         _logger.info("Creating the state ephemeral: %s", self._state_path)
         self._client.pcreate(self._state_path, None, ephemeral=True, makepath=True)
 

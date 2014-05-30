@@ -46,6 +46,8 @@ class Application: # pylint: disable=R0902
             interval,
             handle_signals,
             get_ext_stat=None,
+            node_name=None,
+            process_name=None,
             **kwargs_dict
         ):
 
@@ -63,7 +65,7 @@ class Application: # pylint: disable=R0902
 
         _logger.debug("creating application. {}".format(vars(self)), extra=vars(self))
 
-        self._state_writer = None
+        self._state_writer = appstate.StateWriter(self._state_base, node_name, process_name)
 
         self._stop_event = threading.Event()
         self._signal_handlers_dict = {}
@@ -89,8 +91,7 @@ class Application: # pylint: disable=R0902
         for signum in self._signal_handlers_dict :
             signal.signal(signum, self._save_signal)
 
-        self._state_writer = appstate.StateWriter(self._zoo_connect(), self._state_base)
-        self._state_writer.init_instance()
+        self._state_writer.init_instance(self._zoo_connect())
 
         while not self._stop_event.is_set():
             self._process_signals()
