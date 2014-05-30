@@ -1,12 +1,10 @@
 import threading
 import signal
-import platform
-import socket
-import uuid
 import time
 import logging
 
 from . import zoo
+from . import appstate
 
 
 ##### Private constants #####
@@ -24,20 +22,6 @@ _SIGNAMES_MAP = {
 _logger = logging.getLogger(__name__)
 
 
-##### Public methods #####
-def get_state(client, state_base_path):
-    state = {}
-    for instance in client.get_children(state_base_path):
-        try:
-            instance_state = client.pget(zoo.join(state_base_path, instance))
-        except zoo.NoNodeError:
-            continue
-        (node, proc_uuid) = instance.split("~")
-        state.setdefault(node, {})
-        state[node][proc_uuid] = instance_state
-    return state
-
-
 ##### Public classes #####
 class Thread(threading.Thread):
     def __init__(self, zoo_connect, **kwargs_dict):
@@ -50,11 +34,12 @@ class Thread(threading.Thread):
     def cleanup(self):
         zoo.close(self._client)
 
+
 class Application: # pylint: disable=R0902
     def __init__( # pylint: disable=R0913
             self,thread_class,
             zoo_connect,
-            state_base_path,
+            state_base,
             workers,
             die_after,
             quit_wait,
@@ -66,7 +51,7 @@ class Application: # pylint: disable=R0902
 
         self._thread_class = thread_class
         self._zoo_connect = zoo_connect
-        self._state_base_path = state_base_path
+        self._state_base = state_base
         self._workers = workers
         self._die_after = die_after
         self._quit_wait = quit_wait
@@ -78,8 +63,7 @@ class Application: # pylint: disable=R0902
 
         _logger.debug("creating application. {}".format(vars(self)), extra=vars(self))
 
-        self._state_client = None
-        self._state_path = None
+        self._state_writer = None
 
         self._stop_event = threading.Event()
         self._signal_handlers_dict = {}
@@ -105,7 +89,8 @@ class Application: # pylint: disable=R0902
         for signum in self._signal_handlers_dict :
             signal.signal(signum, self._save_signal)
 
-        self._init_state()
+        self._state_writer = appstate.StateWriter(self._zoo_connect(), self._state_base)
+        self._state_writer.init_instance()
 
         while not self._stop_event.is_set():
             self._process_signals()
@@ -127,18 +112,8 @@ class Application: # pylint: disable=R0902
 
     ### Private ###
 
-    def _init_state(self):
-        self._state_client = self._zoo_connect()
-        self._state_path = zoo.join(self._state_base_path, "{}~{}".format(platform.uname()[1], uuid.uuid4()))
-        _logger.info("Creating the state ephemeral: %s", self._state_path)
-        self._state_client.pcreate(self._state_path, None, ephemeral=True, makepath=True)
-
     def _write_state(self):
         state = {
-            "host": {
-                "node": platform.uname()[1],
-                "fqdn": socket.getfqdn(),
-            },
             "threads": {
                 "respawns":      self._respawns,
                 "die_after":     self._die_after,
@@ -147,8 +122,7 @@ class Application: # pylint: disable=R0902
         }
         if self._get_ext_stat is not None:
             state.update(self._get_ext_stat())
-        _logger.debug("Dump the state to: %s", self._state_path)
-        self._state_client.pset(self._state_path, state)
+        self._state_writer.write(state)
 
 
     ###

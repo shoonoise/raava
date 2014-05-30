@@ -96,9 +96,10 @@ RUNNING_STATE   = READY_STATE
 JOBS_COUNTER = "jobs_counter"
 JOBS_COUNTER_PATH = join(CORE_PATH, JOBS_COUNTER)
 
-STATE_SPLITTER_PATH  = join(CORE_PATH, "state", "splitter")
-STATE_WORKER_PATH    = join(CORE_PATH, "state", "worker")
-STATE_COLLECTOR_PATH = join(CORE_PATH, "state", "collector")
+STATE_PATH = join(CORE_PATH, "state")
+STATE_SPLITTER  = "splitter"
+STATE_WORKER    = "worker"
+STATE_COLLECTOR = "collector"
 
 
 class TASK_STATUS:
@@ -139,9 +140,9 @@ def init(client, fatal=False):
             RUNNING_PATH,
             CONTROL_JOBS_PATH,
             JOBS_COUNTER_PATH,
-            STATE_SPLITTER_PATH,
-            STATE_WORKER_PATH,
-            STATE_COLLECTOR_PATH,
+            join(STATE_PATH, STATE_SPLITTER),
+            join(STATE_PATH, STATE_WORKER),
+            join(STATE_PATH, STATE_COLLECTOR),
             USER_PATH,
         ):
         try:
