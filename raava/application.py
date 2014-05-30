@@ -135,7 +135,7 @@ class Application:
         }
         if self._get_ext_stat is not None:
             state.update(self._get_ext_stat())
-        _logger.info("Dump the state to: %s", self._state_path)
+        _logger.debug("Dump the state to: %s", self._state_path)
         self._state_client.pset(self._state_path, state)
 
 
