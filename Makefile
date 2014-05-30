@@ -5,10 +5,7 @@ tox:
 	pypy3 -m tox
 
 pylint:
-	pypy3 `which pylint` --rcfile=pylint.ini \
-		raava \
-		*.py \
-		--output-format=colorized 2>&1 | less -SR
+	pypy3 -m tox -e pylint
 
 pypi:
 	python setup.py register
