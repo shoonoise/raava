@@ -20,7 +20,7 @@ def _make_comparator(name, method):
                 return method(value, self._operand)
             except Exception as err:
                 raise ComparsionError("Invalid operands for {}: {} vs. {}".format(self, value, self._operand)) from err
-        comparator.__name__ = name
+    comparator.__name__ = name
 
     # XXX: Hack for pickling error:
     #   pickle.PicklingError: Can't pickle <class 'raava.comparators.eq_comparator'>:
