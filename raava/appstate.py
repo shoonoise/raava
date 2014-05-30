@@ -1,6 +1,7 @@
 import socket
 import platform
 import uuid
+import time
 import logging
 
 from . import zoo
@@ -44,6 +45,7 @@ class StateWriter:
 
     def write(self, state):
         state.update({
+                "when": time.time(),
                 "host": {
                     "node": platform.uname()[1],
                     "fqdn": socket.getfqdn(),
