@@ -66,7 +66,7 @@ class Application:
 
         _logger.debug("creating application. {}".format(vars(self)), extra=vars(self))
 
-        self._client = None
+        self._state_client = None
         self._state_path = None
 
         self._stop_event = threading.Event()
@@ -116,10 +116,10 @@ class Application:
     ### Private ###
 
     def _init_state(self):
-        self._client = self._zoo_connect()
+        self._state_client = self._zoo_connect()
         self._state_path = zoo.join(self._state_base_path, "{}~{}".format(platform.uname()[1], uuid.uuid4()))
         _logger.info("Creating the state ephemeral: %s", self._state_path)
-        self._client.pcreate(self._state_path, None, ephemeral=True, makepath=True)
+        self._state_client.pcreate(self._state_path, None, ephemeral=True, makepath=True)
 
     def _write_state(self):
         state = {
@@ -136,7 +136,7 @@ class Application:
         if self._get_ext_stat is not None:
             state.update(self._get_ext_stat())
         _logger.info("Dump the state to: %s", self._state_path)
-        self._client.pset(self._state_path, state)
+        self._state_client.pset(self._state_path, state)
 
 
     ###
