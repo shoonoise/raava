@@ -92,6 +92,9 @@ class Loader:
 
     ### Public ###
 
+    def get_last_head(self):
+        return self._head_cache.get(_HEAD)
+
     def get_handlers(self):
         """
             This function returns the current version of the rules, and dicionary with handlers keyed by type
