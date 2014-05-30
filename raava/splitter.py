@@ -18,7 +18,8 @@ class SplitterThread(application.Thread):
     def __init__(self, loader, **kwargs_dict):
         global _splitters
         _splitters += 1
-        application.Thread.__init__(self, name="Splitter::{splitters:03d}".format(splitters=_splitters), **kwargs_dict)
+        thread_name = "Splitter::{splitters:03d}".format(splitters=_splitters)
+        application.Thread.__init__(self, name=thread_name, **kwargs_dict)
 
         self._loader = loader
         self._input_queue = self._client.TransactionalQueue(zoo.INPUT_PATH)
@@ -72,7 +73,8 @@ class SplitterThread(application.Thread):
                         zoo.READY_HANDLER: self._make_handler_pickle(handler, input_dict[zoo.INPUT_EVENT]),
                         zoo.READY_STATE:   None,
                     }))
-                _logger.info("... splitting %s --> %s; handler: %s.%s", job_id, task_id, handler.__module__, handler.__name__)
+                _logger.info("... splitting %s --> %s; handler: %s.%s",
+                    job_id, task_id, handler.__module__, handler.__name__)
             self._input_queue.consume(trans)
 
         _logger.info("Split of %s successfully completed", job_id)
@@ -81,7 +83,8 @@ class SplitterThread(application.Thread):
         event_root = event_root.copy()
         def new_handler():
             return handler(event_root)
-        # XXX: Unpickling can fail if the service that makes unpacking knows nothing about handlers (has no PATH for rules).
-        # For example, the collector. Services that need a stack or handler explicitly unpickle it.
+        # XXX: Unpickling can fail if the service that makes unpacking knows nothing about handlers
+        # (has no PATH for rules). For example, the collector. Services that need a stack or handler
+        # explicitly unpickle it.
         return pickle.dumps(new_handler)
 

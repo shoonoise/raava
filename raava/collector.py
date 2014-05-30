@@ -17,7 +17,8 @@ class CollectorThread(application.Thread):
     def __init__(self, poll_interval, delay, recycled_priority, garbage_lifetime, **kwargs_dict):
         global _collectors
         _collectors += 1
-        application.Thread.__init__(self, name="Collector::{collectors:03d}".format(collectors=_collectors), **kwargs_dict)
+        thread_name = "Collector::{collectors:03d}".format(collectors=_collectors)
+        application.Thread.__init__(self, name=thread_name, **kwargs_dict)
 
         self._interval = poll_interval
         self._delay = delay
@@ -52,7 +53,8 @@ class CollectorThread(application.Thread):
             try:
                 # XXX: There is no need to control lock
                 running_dict = self._client.pget(zoo.join(zoo.RUNNING_PATH, task_id))
-                control_task_path = zoo.join(zoo.CONTROL_JOBS_PATH, running_dict[zoo.RUNNING_JOB_ID], zoo.CONTROL_TASKS, task_id)
+                control_task_path = zoo.join(zoo.CONTROL_JOBS_PATH, running_dict[zoo.RUNNING_JOB_ID],
+                    zoo.CONTROL_TASKS, task_id)
                 created = self._client.pget(zoo.join(control_task_path, zoo.CONTROL_TASK_CREATED))
                 recycled = self._client.pget(zoo.join(control_task_path, zoo.CONTROL_TASK_RECYCLED))
             except zoo.NoNodeError:
@@ -104,7 +106,8 @@ class CollectorThread(application.Thread):
                         zoo.READY_HANDLER: running_dict[zoo.RUNNING_HANDLER],
                         zoo.READY_STATE:   running_dict[zoo.RUNNING_STATE],
                     }))
-                trans.pset(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_RECYCLED), time.time())
+                trans.pset(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS,
+                    task_id, zoo.CONTROL_TASK_RECYCLED), time.time())
             _logger.info("Pushed back: %s", task_id)
         except zoo.TransactionError:
             _logger.exception("Cannot push-back running")

@@ -87,7 +87,8 @@ class WorkerThread(application.Thread):
         lock_path = zoo.join(zoo.RUNNING_PATH, task_id, zoo.LOCK)
         try:
             parents_list = self._client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_PARENTS))
-            created = self._client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS, task_id, zoo.CONTROL_TASK_CREATED))
+            created = self._client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS,
+                task_id, zoo.CONTROL_TASK_CREATED))
         except zoo.NoNodeError:
             _logger.exception("Missing the necessary control nodes for the ready job")
             return
@@ -171,7 +172,7 @@ class WorkerThread(application.Thread):
 
 ##### Private classes #####
 class _TaskThread(threading.Thread):
-    def __init__(self, parents_list, job_id, task_id, handler, state, controller, saver):
+    def __init__(self, parents_list, job_id, task_id, handler, state, controller, saver): # pylint: disable=R0913
         self._controller = controller
         self._saver = saver
         self._task = _Task(parents_list, job_id, task_id, handler, state)
@@ -219,7 +220,7 @@ class _TaskThread(threading.Thread):
             _logger.info("Task is stopped")
 
 class _Task:
-    def __init__(self, parents_list, job_id, task_id, handler, state):
+    def __init__(self, parents_list, job_id, task_id, handler, state): # pylint: disable=R0913
         assert bool(handler) ^ bool(state), "Required handler OR state"
         self._parents_list = parents_list
         self._job_id = job_id

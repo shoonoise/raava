@@ -117,11 +117,12 @@ class Loader:
 
     ### Private ###
 
-    def _load_handlers(self, head):
+    def _load_handlers(self, head): # pylint: disable=R0914
         """
             Function recursively walks the directory specified in the "head".
             Subdirectories and files whose names begin with a "." or "_" are ignored.
-            Each module is imported separately from the others, and it is sought to one of the entry points identified in the "self._mains".
+            Each module is imported separately from the others, and it is sought to one
+            of the entry points identified in the "self._mains".
 
             Example:
                 /rules
@@ -156,7 +157,8 @@ class Loader:
                 try:
                     module = importlib.import_module(module_name)
                 except Exception:
-                    _logger.exception("Cannot import module \"%s\" (path %s)", module_name, os.path.join(root_path, file_name))
+                    _logger.exception("Cannot import module \"%s\" (path %s)",
+                        module_name, os.path.join(root_path, file_name))
                     continue
 
                 for (handler_type, collection) in handlers.items():

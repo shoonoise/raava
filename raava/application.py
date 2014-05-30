@@ -50,8 +50,20 @@ class Thread(threading.Thread):
     def cleanup(self):
         zoo.close(self._client)
 
-class Application:
-    def __init__(self, thread_class, zoo_connect, state_base_path, workers, die_after, quit_wait, interval, handle_signals, get_ext_stat=None, **kwargs_dict):
+class Application: # pylint: disable=R0902
+    def __init__( # pylint: disable=R0913
+            self,thread_class,
+            zoo_connect,
+            state_base_path,
+            workers,
+            die_after,
+            quit_wait,
+            interval,
+            handle_signals,
+            get_ext_stat=None,
+            **kwargs_dict
+        ):
+
         self._thread_class = thread_class
         self._zoo_connect = zoo_connect
         self._state_base_path = state_base_path
@@ -152,7 +164,8 @@ class Application:
             args_tuple = signal_dict[_SIGNAL_ARGS]
             if args_tuple is not None:
                 try:
-                    _logger.debug("Processing signal %s --> %s.%s(%s)", _SIGNAMES_MAP[signum], handler.__module__, handler.__name__, args_tuple)
+                    _logger.debug("Processing signal %s --> %s.%s(%s)",
+                        _SIGNAMES_MAP[signum], handler.__module__, handler.__name__, args_tuple)
                     handler(*args_tuple)
                 except Exception:
                     _logger.exception("Error while processing %s", signame)
@@ -191,7 +204,7 @@ class Application:
             self._threads.append(thread)
             self._respawns += 1
 
-    def _quit(self, signum = None, frame = None):
+    def _quit(self, signum = None, frame = None): # pylint: disable=W0613
         _logger.info("Quitting...")
         self._stop_event.set()
 
