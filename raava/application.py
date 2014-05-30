@@ -116,7 +116,7 @@ class Application: # pylint: disable=R0902
 
         for thread in self._threads:
             thread.stop()
-        _logger.debug("Waiting to stop the workers...")
+        _logger.debug("Waiting to stop workers...")
         for _ in range(self._quit_wait):
             self._cleanup_threads(False)
             if len(self._threads) == 0:
