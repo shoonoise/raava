@@ -24,8 +24,8 @@ _logger = logging.getLogger(__name__)
 
 ##### Public classes #####
 class Thread(threading.Thread):
-    def __init__(self, zoo_connect, **kwargs_dict):
-        threading.Thread.__init__(self, **kwargs_dict)
+    def __init__(self, zoo_connect, **kwargs):
+        threading.Thread.__init__(self, **kwargs)
         self._client = zoo_connect()
 
     def alive_children(self):
@@ -48,7 +48,7 @@ class Application: # pylint: disable=R0902
             get_ext_stat=None,
             node_name=None,
             process_name=None,
-            **kwargs_dict
+            **kwargs
         ):
 
         self._thread_class = thread_class
@@ -60,15 +60,15 @@ class Application: # pylint: disable=R0902
         self._interval = interval
         self._get_ext_stat = get_ext_stat
 
-        self._thread_kwargs_dict = dict(kwargs_dict)
-        self._thread_kwargs_dict["zoo_connect"] = zoo_connect
+        self._thread_kwargs = dict(kwargs)
+        self._thread_kwargs["zoo_connect"] = zoo_connect
 
         _logger.debug("creating application. {}".format(vars(self)), extra=vars(self))
 
         self._state_writer = appstate.StateWriter(self._state_base, node_name, process_name)
 
         self._stop_event = threading.Event()
-        self._signal_handlers_dict = {}
+        self._signal_handlers = {}
         if handle_signals:
             for (signum, handler) in (
                     (signal.SIGTERM, self._quit),
@@ -82,13 +82,13 @@ class Application: # pylint: disable=R0902
     ### Public ###
 
     def set_signal_handler(self, signum, handler):
-        self._signal_handlers_dict[signum] = {
+        self._signal_handlers[signum] = {
                 _SIGNAL_HANDLER: handler,
                 _SIGNAL_ARGS:    None,
             }
 
     def run(self):
-        for signum in self._signal_handlers_dict :
+        for signum in self._signal_handlers :
             signal.signal(signum, self._save_signal)
 
         self._state_writer.init_instance(self._zoo_connect())
@@ -130,23 +130,23 @@ class Application: # pylint: disable=R0902
 
     def _save_signal(self, signum, frame):
         _logger.debug("Saved signal: %s", _SIGNAMES_MAP[signum])
-        self._signal_handlers_dict[signum][_SIGNAL_ARGS] = (signum, frame)
+        self._signal_handlers[signum][_SIGNAL_ARGS] = (signum, frame)
 
     def _process_signals(self):
-        for (signum, signal_dict) in self._signal_handlers_dict.items():
+        for (signum, signal_attrs) in self._signal_handlers.items():
             signame = _SIGNAMES_MAP[signum]
-            handler = signal_dict[_SIGNAL_HANDLER]
-            args_tuple = signal_dict[_SIGNAL_ARGS]
-            if args_tuple is not None:
+            handler = signal_attrs[_SIGNAL_HANDLER]
+            args = signal_attrs[_SIGNAL_ARGS]
+            if args is not None:
                 try:
                     _logger.debug("Processing signal %s --> %s.%s(%s)",
-                        _SIGNAMES_MAP[signum], handler.__module__, handler.__name__, args_tuple)
-                    handler(*args_tuple)
+                        _SIGNAMES_MAP[signum], handler.__module__, handler.__name__, args)
+                    handler(*args)
                 except Exception:
                     _logger.exception("Error while processing %s", signame)
                     raise
                 finally:
-                    self._signal_handlers_dict[signum][_SIGNAL_ARGS] = None
+                    self._signal_handlers[signum][_SIGNAL_ARGS] = None
 
     def _cleanup_threads(self, pass_children_flag = True):
         for thread in self._threads[:]:
@@ -173,7 +173,7 @@ class Application: # pylint: disable=R0902
             return
 
         while len(self._threads) < self._workers:
-            thread = self._thread_class(**self._thread_kwargs_dict)
+            thread = self._thread_class(**self._thread_kwargs)
             thread.start()
             _logger.info("Spawned the new worker: %s", thread.name)
             self._threads.append(thread)
