@@ -108,7 +108,15 @@ class WorkerThread(application.Thread):
             trans.create(lock_path, ephemeral=True) # XXX: Acquired SingleLock()
             self._ready_queue.consume(trans)
 
-        task_thread = _TaskThread(parents_list, job_id, task_id, handler, state, self._controller, self._saver)
+        task_thread = _TaskThread(
+            controller=self._controller,
+            saver=self._saver,
+            parents_list=parents_list,
+            job_id=job_id,
+            task_id=task_id,
+            handler=handler,
+            state=state,
+        )
         self._threads_dict[task_id] = {
             _TASK_THREAD: task_thread,
             _TASK_LOCK:   self._client.SingleLock(lock_path),
@@ -172,12 +180,12 @@ class WorkerThread(application.Thread):
 
 ##### Private classes #####
 class _TaskThread(threading.Thread):
-    def __init__(self, parents_list, job_id, task_id, handler, state, controller, saver): # pylint: disable=R0913
+    def __init__(self, controller, saver, *args, **kwargs):
         self._controller = controller
         self._saver = saver
-        self._task = _Task(parents_list, job_id, task_id, handler, state)
+        self._task = _Task(*args, **kwargs)
         self._stop_flag = False
-        thread_name = "TaskThread::" + task_id
+        thread_name = "TaskThread::" + self._task.get_task_id()
         threading.Thread.__init__(self, name=thread_name)
 
 
