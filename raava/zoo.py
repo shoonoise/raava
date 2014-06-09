@@ -34,9 +34,9 @@
     /core                 # Common system section.
     /core/jobs_counter    # Incremental counter for input jobs/events.
     /core/state           # Common section with runtime state.
-    /core/state/splitter/<node>~<uuid>     # Splitter data.
-    /core/state/worker/<node>~<uuid>       # Worker data.
-    /core/state/collector/<node>~<uuid>    # Collector data.
+    /core/state/splitter/<node>     # Splitter data.
+    /core/state/worker/<node>       # Worker data.
+    /core/state/collector/<node>    # Collector data.
 
     /user    # Section for user data.
 """

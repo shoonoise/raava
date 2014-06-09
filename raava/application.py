@@ -4,7 +4,6 @@ import time
 import logging
 
 from . import zoo
-from . import appstate
 
 
 ##### Private constants #####
@@ -37,35 +36,26 @@ class Thread(threading.Thread):
 
 class Application: # pylint: disable=R0902
     def __init__( # pylint: disable=R0913
-            self,thread_class,
-            zoo_connect,
-            state_base,
+            self,
+            thread_class,
             workers,
             die_after,
             quit_wait,
             interval,
             handle_signals,
-            get_ext_stat=None,
-            node_name=None,
-            process_name=None,
+            state_writer=None,
             **kwargs
         ):
 
         self._thread_class = thread_class
-        self._zoo_connect = zoo_connect
-        self._state_base = state_base
         self._workers = workers
         self._die_after = die_after
         self._quit_wait = quit_wait
         self._interval = interval
-        self._get_ext_stat = get_ext_stat
-
-        self._thread_kwargs = dict(kwargs)
-        self._thread_kwargs["zoo_connect"] = zoo_connect
+        self._state_writer = state_writer
+        self._thread_kwargs = kwargs
 
         _logger.debug("creating application. {}".format(vars(self)), extra=vars(self))
-
-        self._state_writer = appstate.StateWriter(self._state_base, node_name, process_name)
 
         self._stop_event = threading.Event()
         self._signal_handlers = {}
@@ -91,40 +81,37 @@ class Application: # pylint: disable=R0902
         for signum in self._signal_handlers :
             signal.signal(signum, self._save_signal)
 
-        self._state_writer.init_instance(self._zoo_connect())
+        with self._state_writer:
+            while not self._stop_event.is_set():
+                self._process_signals()
+                self._cleanup_threads()
+                self._respawn_threads()
+                if self._state_writer is not None:
+                    self._write_state()
+                self._stop_event.wait(self._interval)
 
-        while not self._stop_event.is_set():
-            self._process_signals()
-            self._cleanup_threads()
-            self._respawn_threads()
-            self._write_state()
-            self._stop_event.wait(self._interval)
+            for thread in self._threads:
+                thread.stop()
+            _logger.debug("Waiting to stop workers...")
+            for _ in range(self._quit_wait):
+                self._cleanup_threads(False)
+                if len(self._threads) == 0:
+                    break
+                time.sleep(1)
 
-        for thread in self._threads:
-            thread.stop()
-        _logger.debug("Waiting to stop workers...")
-        for _ in range(self._quit_wait):
-            self._cleanup_threads(False)
-            if len(self._threads) == 0:
-                break
-            time.sleep(1)
         _logger.debug("Bye-bye ^_^")
 
 
     ### Private ###
 
     def _write_state(self):
-        state = {
-            "threads": {
-                "respawns":      self._respawns,
-                "die_after":     self._die_after,
-                "workers_limit": self._workers,
-            },
-        }
-        if self._get_ext_stat is not None:
-            state.update(self._get_ext_stat())
-        self._state_writer.write(state)
-
+        self._state_writer.write({
+                "threads": {
+                    "respawns":      self._respawns,
+                    "die_after":     self._die_after,
+                    "workers_limit": self._workers,
+                },
+            })
 
     ###
 

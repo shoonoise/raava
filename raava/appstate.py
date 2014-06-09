@@ -17,31 +17,32 @@ def get_state(client):
     for state_base in client.get_children(zoo.STATE_PATH):
         state[state_base] = {}
         state_base_path = zoo.join(zoo.STATE_PATH, state_base)
-        for instance in client.get_children(state_base_path):
+        for node_name in client.get_children(state_base_path):
             try:
-                instance_state = client.pget(zoo.join(state_base_path, instance))
+                state[state_base][node_name] = client.pget(zoo.join(state_base_path, node_name))
             except zoo.NoNodeError:
-                continue
-            (node, proc_uuid) = instance.split("~")
-            state[state_base].setdefault(node, {})
-            state[state_base][node][proc_uuid] = instance_state
+                pass
     return state
 
 
 ##### Public classes #####
 class StateWriter:
-    def __init__(self, state_base, node_name=None, process_name=None):
-        if node_name is None:
-            node_name = platform.uname()[1]
-        if process_name is None:
-            process_name = str(uuid.uuid4())
-        self._client = None
-        self._state_path = zoo.join(zoo.STATE_PATH, state_base, "{}~{}".format(node_name, process_name))
+    def __init__(self, zoo_connect, state_base, node_name=None, get_ext=None):
+        self._zoo_connect = zoo_connect
+        self._get_ext = get_ext
 
-    def init_instance(self, client):
-        self._client = client
+        if node_name is None:
+            node_name = "{}:{}".format(platform.uname()[1], uuid.uuid4())
+        self._client = None
+        self._state_path = zoo.join(zoo.STATE_PATH, state_base, node_name)
+
+    def __enter__(self):
+        self._client = self._zoo_connect()
         _logger.info("Creating the state ephemeral: %s", self._state_path)
         self._client.pcreate(self._state_path, None, ephemeral=True, makepath=True)
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        zoo.close(self._client)
 
     def write(self, state):
         state.update({
@@ -51,5 +52,6 @@ class StateWriter:
                     "fqdn": socket.getfqdn(),
                 },
             })
+        state.update(self._get_ext())
         _logger.debug("Dump the state to: %s", self._state_path)
         self._client.pset(self._state_path, state)
