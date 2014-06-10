@@ -35,11 +35,10 @@ class StateWriter:
             node_name = "{}@{}".format(uuid.uuid4(), platform.uname()[1])
         self._client = None
         self._state_path = zoo.join(zoo.STATE_PATH, state_base, node_name)
+        self._node_ok = False
 
     def __enter__(self):
         self._client = self._zoo_connect()
-        _logger.info("Creating the state ephemeral: %s", self._state_path)
-        self._client.pcreate(self._state_path, None, ephemeral=True, makepath=True)
 
     def __exit__(self, exc_type, exc_value, traceback):
         zoo.close(self._client)
@@ -54,4 +53,16 @@ class StateWriter:
             })
         state.update(self._get_ext())
         _logger.debug("Dump the state to: %s", self._state_path)
-        self._client.pset(self._state_path, state)
+
+        try:
+            if not self._node_ok:
+                _logger.info("Creating the state ephemeral: %s", self._state_path)
+                self._client.pcreate(self._state_path, None, ephemeral=True, makepath=True)
+
+            self._client.pset(self._state_path, state)
+            _logger.debug("State saved to: %s", self._state_path)
+
+            self._node_ok = True
+        except zoo.SessionExpiredError:
+            _logger.error("Cannot save state: ZK session is expired")
+            self._node_ok = False
