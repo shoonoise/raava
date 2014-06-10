@@ -32,7 +32,7 @@ class StateWriter:
         self._get_ext = get_ext
 
         if node_name is None:
-            node_name = "{}:{}".format(platform.uname()[1], uuid.uuid4())
+            node_name = "{}@{}".format(uuid.uuid4(), platform.uname()[1])
         self._client = None
         self._state_path = zoo.join(zoo.STATE_PATH, state_base, node_name)
 
