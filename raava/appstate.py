@@ -44,7 +44,8 @@ class StateWriter:
                     "fqdn": socket.getfqdn(),
                 },
             })
-        state.update(self._get_ext())
+        if self._get_ext is not None:
+            state.update(self._get_ext())
 
         try:
             self._write_state(state)
