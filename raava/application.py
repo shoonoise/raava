@@ -43,7 +43,7 @@ class Application: # pylint: disable=R0902
             quit_wait,
             interval,
             handle_signals,
-            state_writer=None,
+            state_writer,
             **kwargs
         ):
 
@@ -86,11 +86,10 @@ class Application: # pylint: disable=R0902
                 self._process_signals()
                 self._cleanup_threads()
                 self._respawn_threads()
-                if self._state_writer is not None:
-                    try:
-                        self._write_state()
-                    except Exception:
-                        _logger.exception("Cannot write application state in this moment")
+                try:
+                    self._write_state()
+                except Exception:
+                    _logger.exception("Cannot write application state in this moment")
                 self._stop_event.wait(self._interval)
 
             for thread in self._threads:
@@ -108,13 +107,17 @@ class Application: # pylint: disable=R0902
     ### Private ###
 
     def _write_state(self):
-        self._state_writer.write({
-                "threads": {
-                    "respawns":      self._respawns,
-                    "die_after":     self._die_after,
-                    "workers_limit": self._workers,
-                },
-            })
+        state = {
+            "threads": {
+                "respawns":      self._respawns,
+                "die_after":     self._die_after,
+                "workers_limit": self._workers,
+            },
+        }
+        try:
+            self._state_writer.write(state)
+        except Exception:
+            _logger.exception("Cannot write application state in this moment")
 
     ###
 
