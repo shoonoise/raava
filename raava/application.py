@@ -78,7 +78,7 @@ class Application: # pylint: disable=R0902
             }
 
     def run(self):
-        for signum in self._signal_handlers :
+        for signum in self._signal_handlers:
             signal.signal(signum, self._save_signal)
 
         with self._state_writer:
