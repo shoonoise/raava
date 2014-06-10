@@ -50,11 +50,8 @@ class StateWriter:
         try:
             self._write_state(state)
         except zoo.NoNodeError:
-            try:
-                self._create_node()
-                self._write_state(state)
-            except zoo.SessionExpiredError:
-                _logger.error("Cannot save state: ZK session is expired")
+            self._create_node()
+            self._write_state(state)
 
     def __enter__(self):
         self._client = self._zoo_connect()
