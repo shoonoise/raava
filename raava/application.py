@@ -86,10 +86,7 @@ class Application: # pylint: disable=R0902
                 self._process_signals()
                 self._cleanup_threads()
                 self._respawn_threads()
-                try:
-                    self._write_state()
-                except Exception:
-                    _logger.exception("Cannot write application state in this moment")
+                self._write_state()
                 self._stop_event.wait(self._interval)
 
             for thread in self._threads:
