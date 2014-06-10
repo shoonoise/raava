@@ -84,7 +84,7 @@ class Application: # pylint: disable=R0902
         with self._state_writer:
             while not self._stop_event.is_set():
                 self._process_signals()
-                self._cleanup_threads()
+                self._cleanup_threads(ignore_children=True)
                 self._respawn_threads()
                 self._write_state()
                 self._stop_event.wait(self._interval)
@@ -93,7 +93,7 @@ class Application: # pylint: disable=R0902
                 thread.stop()
             _logger.debug("Waiting to stop workers...")
             for _ in range(self._quit_wait):
-                self._cleanup_threads(False)
+                self._cleanup_threads(ignore_children=False)
                 if len(self._threads) == 0:
                     break
                 time.sleep(1)
@@ -138,11 +138,11 @@ class Application: # pylint: disable=R0902
                 finally:
                     self._signal_handlers[signum][_SIGNAL_ARGS] = None
 
-    def _cleanup_threads(self, pass_children_flag = True):
+    def _cleanup_threads(self, ignore_children):
         for thread in self._threads[:]:
             if not thread.is_alive():
                 alive_children = thread.alive_children()
-                if alive_children == 0 or pass_children_flag:
+                if alive_children == 0 or ignore_children:
                     self._threads.remove(thread)
                     try:
                         thread.cleanup()
