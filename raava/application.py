@@ -114,7 +114,7 @@ class Application: # pylint: disable=R0902
         try:
             self._state_writer.write(state)
         except Exception:
-            _logger.exception("Cannot write application state in this moment")
+            _logger.exception("Cannot write application state at this moment")
 
     ###
 
