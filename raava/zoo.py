@@ -33,6 +33,10 @@
 
     /core                 # Common system section.
     /core/jobs_counter    # Incremental counter for input jobs/events.
+    /core/state           # Common section with runtime state.
+    /core/state/splitter/<node>     # Splitter data.
+    /core/state/worker/<node>       # Worker data.
+    /core/state/collector/<node>    # Collector data.
 
     /user    # Section for user data.
 """
@@ -92,6 +96,12 @@ RUNNING_STATE   = READY_STATE
 JOBS_COUNTER = "jobs_counter"
 JOBS_COUNTER_PATH = join(CORE_PATH, JOBS_COUNTER)
 
+STATE_PATH = join(CORE_PATH, "state")
+STATE_SPLITTER  = "splitter"
+STATE_WORKER    = "worker"
+STATE_COLLECTOR = "collector"
+
+
 class TASK_STATUS:
     NEW      = "new"
     READY    = "ready"
@@ -124,7 +134,17 @@ def close(client):
 
 ###
 def init(client, fatal=False):
-    for path in (INPUT_PATH, READY_PATH, RUNNING_PATH, CONTROL_JOBS_PATH, JOBS_COUNTER_PATH, USER_PATH):
+    for path in (
+            INPUT_PATH,
+            READY_PATH,
+            RUNNING_PATH,
+            CONTROL_JOBS_PATH,
+            JOBS_COUNTER_PATH,
+            join(STATE_PATH, STATE_SPLITTER),
+            join(STATE_PATH, STATE_WORKER),
+            join(STATE_PATH, STATE_COLLECTOR),
+            USER_PATH,
+        ):
         try:
             client.create(path, makepath=True)
             _logger.info("Created zoo path: %s", path)
@@ -309,8 +329,8 @@ class Client(kazoo.client.KazooClient): # pylint: disable=R0904
     def pset(self, path, value):
         return self.set(path, pickle.dumps(value))
 
-    def pcreate(self, path, value):
-        return self.create(path, pickle.dumps(value))
+    def pcreate(self, path, value, **kwargs):
+        return self.create(path, value=pickle.dumps(value), **kwargs)
 
     def transaction(self, name): # pylint: disable=W0221
         return TransactionRequest(self, name)
