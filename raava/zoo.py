@@ -213,6 +213,7 @@ class SingleLock:
     def __exit__(self, exc_type, exc_value, traceback):
         self.release()
 
+
 class IncrementalCounter:
     def __init__(self, client, path):
         self._client = client
@@ -230,6 +231,7 @@ class IncrementalCounter:
             value = self.get_value()
             self._client.pset(self._path, value + 1)
         return value
+
 
 class TransactionalQueue:
     # This class based on the recipe for the queue from here:
@@ -259,7 +261,24 @@ class TransactionalQueue:
         if self._last is not None:
             self._children.pop(0)
             self._last = None
-        return self._client.retry(self._inner_get)
+
+        while True:
+            if len(self._children) == 0:
+                self._children = self._client.retry(self._client.get_children, self._path)
+                self._children = list(sorted(self._children))
+            if len(self._children) == 0:
+                return None
+
+            name = self._children[0]
+            path = join(self._path, name)
+            try:
+                self._client.create(join(path, LOCK), ephemeral=True)
+            except (NoNodeError, NodeExistsError):
+                self._children.pop(0) # FIXME: need a watcher
+                continue
+            self._last = name
+
+            return self._client.get(path)[0]
 
     def consume(self, trans):
         assert self._last is not None, "Required get()"
@@ -273,27 +292,6 @@ class TransactionalQueue:
         stat = self._client.retry(self._client.get, self._path)[1]
         return stat.children_count
 
-
-    ### Private ###
-
-    def _inner_get(self):
-        assert self._last is None, "Required consume() before a new get()"
-        if len(self._children) == 0:
-            self._children = self._client.retry(self._client.get_children, self._path)
-            self._children = list(sorted(self._children))
-        if len(self._children) == 0:
-            return None
-
-        name = self._children[0]
-        path = join(self._path, name)
-        try:
-            self._client.create(join(path, LOCK), ephemeral=True)
-        except (NoNodeError, NodeExistsError):
-            self._children.pop(0) # FIXME: need a watcher
-            raise kazoo.retry.ForceRetryError
-        self._last = name
-
-        return self._client.get(path)[0]
 
 class TransactionRequest(kazoo.client.TransactionRequest):
     def __init__(self, client, name):
@@ -316,6 +314,7 @@ class TransactionRequest(kazoo.client.TransactionRequest):
             _logger.error("Failed transaction \"%s\": %s", self._name, results)
             raise TransactionError("Failed transaction: {}".format(self._name))
 
+
 class Client(kazoo.client.KazooClient): # pylint: disable=R0904
     def __init__(self, *args, **kwargs):
         self.SingleLock = functools.partial(SingleLock, self)
@@ -334,4 +333,3 @@ class Client(kazoo.client.KazooClient): # pylint: disable=R0904
 
     def transaction(self, name): # pylint: disable=W0221
         return TransactionRequest(self, name)
-
