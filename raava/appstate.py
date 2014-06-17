@@ -38,7 +38,7 @@ class StateWriter:
 
     def write(self, state):
         state.update({
-                "when": time.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                "when": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(time.time())),
                 "host": {
                     "node": platform.uname()[1],
                     "fqdn": socket.getfqdn(),
