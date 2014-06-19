@@ -49,9 +49,6 @@ import contextlib
 import logging
 
 import kazoo.client
-import kazoo.protocol.paths
-import kazoo.protocol.states
-import kazoo.retry
 from kazoo.exceptions import * # pylint: disable=W0401,W0614
 from kazoo.protocol.paths import join # pylint: disable=W0611
 
