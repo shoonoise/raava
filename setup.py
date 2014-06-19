@@ -17,11 +17,11 @@ if __name__ == "__main__":
         description="Distributed events processor, based on stackless technology of PyPy3",
         platforms="any",
 
-        packages=(
+        packages=[
             "raava",
-        ),
+        ],
 
-        classifiers=( # http://pypi.python.org/pypi?:action=list_classifiers
+        classifiers=[ # http://pypi.python.org/pypi?:action=list_classifiers
             "Development Status :: 2 - Pre-Alpha",
             "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
             "Operating System :: POSIX :: Linux",
@@ -29,11 +29,12 @@ if __name__ == "__main__":
             "Programming Language :: Python :: Implementation :: PyPy",
             "Topic :: Software Development :: Libraries :: Python Modules",
             "Topic :: System :: Distributed Computing",
-        ),
+        ],
 
-        install_requires=(
+        install_requires=[
             "kazoo >= 1.3.1",
-        ),
+        ],
+        dependency_links=[
+            "https://github.com/mdevaev/kazoo/archive/invoke-timeout.zip#egg=kazoo-2.0",
+        ]
     )
-
-
