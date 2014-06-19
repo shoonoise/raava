@@ -2,15 +2,14 @@
 
 
 import setuptools
-import raava.const
 
 
 ##### Main #####
 if __name__ == "__main__":
     setuptools.setup(
         name="raava",
-        version=raava.const.VERSION,
-        url=raava.const.UPSTREAM_URL,
+        version="0.13",
+        url="https://github.com/yandex-sysmon/raava",
         license="GPLv3",
         author="Devaev Maxim",
         author_email="mdevaev@gmail.com",
