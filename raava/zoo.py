@@ -49,9 +49,6 @@ import contextlib
 import logging
 
 import kazoo.client
-import kazoo.protocol.paths
-import kazoo.protocol.states
-import kazoo.retry
 from kazoo.exceptions import * # pylint: disable=W0401,W0614
 from kazoo.protocol.paths import join # pylint: disable=W0611
 
@@ -118,11 +115,22 @@ class TransactionError(KazooException):
 
 
 ##### Public methods #####
-def connect(zoo_nodes, timeout, start_timeout, randomize_hosts, chroot):
+def connect(zoo_nodes, timeout, start_timeout, start_retries, randomize_hosts, chroot): # pylint: disable=R0913
     hosts = ",".join(zoo_nodes)
     client = Client(hosts=hosts, timeout=timeout, randomize_hosts=randomize_hosts)
     client.chroot = chroot
-    client.start(start_timeout)
+
+    while start_retries is None or start_retries > 0:
+        remaining = ( "inf" if start_retries is None else start_retries )
+        _logger.info("Trying to connect to zookeeper, attempts remaining: %s (timeout: %d)", remaining, start_timeout)
+        try:
+            client.start(timeout=start_timeout)
+            break
+        except Exception:
+            _logger.exception("Can't connect to zookeeper in this time")
+            if start_retries is not None:
+                start_retries -= 1
+
     _logger.info("Started zookeeper client on hosts: %s", hosts)
     return client
 
