@@ -122,22 +122,23 @@ def connect(zoo_nodes, timeout, start_timeout, start_retries, randomize_hosts, c
 
     while start_retries is None or start_retries > 0:
         remaining = ( "inf" if start_retries is None else start_retries )
-        _logger.info("Trying to connect to zookeeper, attempts remaining: %s (timeout: %d)", remaining, start_timeout)
+        _logger.info("Trying to connect to ZK, attempts remaining: %s (timeout: %d; hosts: %s)",
+            remaining, start_timeout, hosts)
         try:
             client.start(timeout=start_timeout)
             break
         except Exception:
-            _logger.exception("Can't connect to zookeeper in this time")
+            _logger.exception("Can't connect to ZK in this time")
             if start_retries is not None:
                 start_retries -= 1
 
-    _logger.info("Started zookeeper client on hosts: %s", hosts)
+    _logger.info("Started ZK client on hosts: %s", hosts)
     return client
 
 def close(client):
     client.stop()
     client.close()
-    _logger.info("Zookeeper client has been closed")
+    _logger.info("ZK client has been closed")
 
 
 ###
