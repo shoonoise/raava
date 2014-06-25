@@ -122,7 +122,8 @@ def connect(zoo_nodes, timeout, start_timeout, start_retries, randomize_hosts, c
 
     while start_retries is None or start_retries > 0:
         remaining = ( "inf" if start_retries is None else start_retries )
-        _logger.info("Trying to connect to zookeeper, attempts remaining: %s (timeout: %d)", remaining, start_timeout)
+        _logger.info("Trying to connect to zookeeper, attempts remaining: %s (timeout: %d; hosts: %s)",
+            remaining, start_timeout, hosts)
         try:
             client.start(timeout=start_timeout)
             break
