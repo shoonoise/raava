@@ -76,15 +76,13 @@ class Loader:
 
         Loader looks for handlers to the specified directory and package.
             @path -- the path to the directory containing the module versions;
-            @head_name -- symbolic link located in the "path" and pointing to the package with the latest version;
             @mains -- contains a list with the names of the functions that must be registered.
     """
 
-    def __init__(self, path, head_name, mains):
+    def __init__(self, path, mains):
         if path not in sys.path:
             raise RuntimeError("Handlers path \"%s\" is not in sys.path!" % (path))
         self._path = path
-        self._head_name = head_name
         self._mains = mains
         self._head_cache = {}
         self._lock = threading.Lock()
@@ -92,16 +90,19 @@ class Loader:
 
     ### Public ###
 
+    def is_version_exists(self, version):
+        head_path = os.path.join(self._path, version)
+        return os.access(head_path, os.F_OK)
+
     def get_last_head(self):
         return self._head_cache.get(_HEAD)
 
-    def get_handlers(self):
+    def get_handlers(self, head):
         """
             This function returns the current version of the rules, and dicionary with handlers keyed by type
             (mains). If the cache is empty loader or it's content has expired (HEAD updated), the new package is
             automatically loaded into the cache, and the function returns the new version.
         """
-        head = os.path.basename(os.readlink(os.path.join(self._path, self._head_name)))
         if self._head_cache.get(_HEAD) != head:
             if not self._lock.acquire(False):
                 self._lock.acquire()
@@ -112,7 +113,7 @@ class Loader:
                 finally:
                     self._lock.release()
         handlers = self._head_cache
-        return (handlers[_HEAD], handlers[_HANDLERS])
+        return handlers[_HANDLERS]
 
 
     ### Private ###
@@ -132,7 +133,7 @@ class Loader:
         """
 
         head_path = os.path.join(self._path, head)
-        assert os.access(head_path, os.F_OK)
+        assert self.is_version_exists(head), "Cannot find module path: {}".format(head_path)
 
         _logger.debug("Loading rules from head: %s; root: %s", head, self._path)
         handlers = { name: set() for name in self._mains }

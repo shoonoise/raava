@@ -32,6 +32,7 @@
     /running/<task_uuid>/lock    # SingleLock(); This lock is used by collector when searching fallen tasks.
 
     /core                 # Common system section.
+    /core/head            # The HEAD of the rules repo
     /core/jobs_counter    # Incremental counter for input jobs/events.
     /core/state           # Common section with runtime state.
     /core/state/splitter/<node>     # Splitter data.
@@ -89,6 +90,8 @@ READY_STATE    = "state"
 RUNNING_JOB_ID  = READY_JOB_ID
 RUNNING_HANDLER = READY_HANDLER
 RUNNING_STATE   = READY_STATE
+
+HEAD_PATH = join(CORE_PATH, "head")
 
 JOBS_COUNTER = "jobs_counter"
 JOBS_COUNTER_PATH = join(CORE_PATH, JOBS_COUNTER)
