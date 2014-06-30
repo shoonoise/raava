@@ -137,3 +137,13 @@ def get_finished(client, job_id):
 def get_events_counter(client):
     return client.IncrementalCounter(zoo.JOBS_COUNTER_PATH).get_value()
 
+
+###
+def get_head(client):
+    try:
+        return client.pget(zoo.HEAD_PATH)
+    except zoo.NoNodeError:
+        return None
+
+def set_head(client, head):
+    client.pset(zoo.HEAD_PATH, head)

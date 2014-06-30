@@ -6,6 +6,7 @@ import logging
 from . import application
 from . import rules
 from . import zoo
+from . import events
 
 
 ##### Private objects #####
@@ -37,16 +38,27 @@ class SplitterThread(application.Thread):
 
     def run(self):
         while not self._stop_flag:
+            head = events.get_head(self._client)
+            if head is None:
+                _logger.warning("No HEAD information, fall sleep for 10 seconds...")
+                time.sleep(10) # FIXME: Add watcher
+                continue
+
+            if not self._loader.is_version_exists(head):
+                _logger.error("The HEAD module '%s' does not exists, fall sleep for 10 seconds...")
+                time.sleep(10)
+                continue
+
             data = self._input_queue.get()
-            if data is None :
+            if data is None:
                 time.sleep(0.1) # FIXME: Add interruptable wait()
                 continue
-            self._split_input(pickle.loads(data))
 
-    def _split_input(self, input_dict):
+            self._split_input(pickle.loads(data), head)
+
+    def _split_input(self, input_dict, head):
         job_id = input_dict[zoo.INPUT_JOB_ID]
-        (head, handlers_dict) = self._loader.get_handlers()
-        handlers_set = rules.get_handlers(input_dict[zoo.INPUT_EVENT], handlers_dict)
+        handlers_set = rules.get_handlers(input_dict[zoo.INPUT_EVENT], self._loader.get_handlers(head))
         _logger.info("Split job %s to %d tasks (head: %s)", job_id, len(handlers_set), head)
 
         job_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id)
