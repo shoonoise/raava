@@ -142,7 +142,7 @@ def get_events_counter(client):
 def get_head(client):
     try:
         return client.pget(zoo.HEAD_PATH)
-    except zoo.NoNodeError:
+    except EOFError:
         return None
 
 def set_head(client, head):
