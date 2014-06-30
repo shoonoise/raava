@@ -8,7 +8,7 @@ import setuptools
 if __name__ == "__main__":
     setuptools.setup(
         name="raava",
-        version="0.14",
+        version="0.15",
         url="https://github.com/yandex-sysmon/raava",
         license="GPLv3",
         author="Devaev Maxim",
