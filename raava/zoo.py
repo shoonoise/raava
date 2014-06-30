@@ -151,6 +151,7 @@ def init(client, fatal=False):
             READY_PATH,
             RUNNING_PATH,
             CONTROL_JOBS_PATH,
+            HEAD_PATH,
             JOBS_COUNTER_PATH,
             join(STATE_PATH, STATE_SPLITTER),
             join(STATE_PATH, STATE_WORKER),
