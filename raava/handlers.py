@@ -91,8 +91,7 @@ class Loader:
     ### Public ###
 
     def is_version_exists(self, version):
-        head_path = os.path.join(self._path, version)
-        return os.access(head_path, os.F_OK)
+        return os.access(self._get_version_path(version), os.F_OK)
 
     def get_last_head(self):
         return self._head_cache.get(_HEAD)
@@ -118,6 +117,9 @@ class Loader:
 
     ### Private ###
 
+    def _get_version_path(self, version):
+        return os.path.join(self._path, version)
+
     def _load_handlers(self, head): # pylint: disable=R0914
         """
             Function recursively walks the directory specified in the "head".
@@ -132,7 +134,7 @@ class Loader:
                 /rules/test/_foo.py # Ignored
         """
 
-        head_path = os.path.join(self._path, head)
+        head_path = self._get_version_path(head)
         assert self.is_version_exists(head), "Cannot find module path: {}".format(head_path)
 
         _logger.debug("Loading rules from head: %s; root: %s", head, self._path)
