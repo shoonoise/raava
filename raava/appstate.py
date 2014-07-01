@@ -1,3 +1,4 @@
+import contextlib
 import socket
 import platform
 import uuid
@@ -62,8 +63,25 @@ class StateWriter:
 
     def _create_node(self):
         _logger.info("Creating the state ephemeral: %s", self._state_path)
-        self._client.pcreate(self._state_path, None, ephemeral=True, makepath=True)
+        with self._connection() as client:
+            client.pcreate(self._state_path, None, ephemeral=True)
 
     def _write_state(self, state):
         _logger.debug("Writing the state to: %s", self._state_path)
-        self._client.pset(self._state_path, state)
+        with self._connection() as client:
+            client.pset(self._state_path, state)
+
+    @contextlib.contextmanager
+    def _connection(self):
+        if self._client is None:
+            self._client = self._zoo_connect()
+            try:
+                self._client.delete(self._state_path)
+            except zoo.NoNodeError:
+                pass
+        try:
+            yield self._client
+        except zoo.SessionExpiredError:
+            client = self._client
+            self._client = None
+            zoo.close(client)
