@@ -85,3 +85,4 @@ class StateWriter:
             client = self._client
             self._client = None
             zoo.close(client)
+            raise
