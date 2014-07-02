@@ -85,7 +85,7 @@ class StateWriter:
 
         try:
             yield self._client
-        except zoo.SessionExpiredError:
+        except Exception:
             self._close_client()
             raise
 
