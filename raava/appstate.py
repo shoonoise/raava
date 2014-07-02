@@ -90,6 +90,8 @@ class StateWriter:
             raise
 
     def _close_client(self):
-        client = self._client
+        try:
+            zoo.close(self._client)
+        except Exception:
+            _logger.exception("Cannot close client: %s", self._client)
         self._client = None
-        zoo.close(client)
