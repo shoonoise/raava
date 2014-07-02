@@ -31,9 +31,6 @@ if __name__ == "__main__":
         ],
 
         install_requires=[
-            "kazoo >= 1.3.1",
+            "kazoo.yandex >= 2.0.1.1dev",
         ],
-        dependency_links=[
-            "https://github.com/mdevaev/kazoo/archive/invoke-timeout.zip#egg=kazoo-2.0",
-        ]
     )
