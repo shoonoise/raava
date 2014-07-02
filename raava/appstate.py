@@ -59,7 +59,7 @@ class StateWriter:
         self._create_node()
 
     def __exit__(self, exc_type, exc_value, traceback):
-        zoo.close(self._client)
+        self._close_client()
 
     def _create_node(self):
         _logger.info("Creating the state ephemeral: %s", self._state_path)
@@ -79,10 +79,17 @@ class StateWriter:
                 self._client.delete(self._state_path)
             except zoo.NoNodeError:
                 pass
+            except Exception:
+                self._close_client()
+                raise
+
         try:
             yield self._client
         except zoo.SessionExpiredError:
-            client = self._client
-            self._client = None
-            zoo.close(client)
+            self._close_client()
             raise
+
+    def _close_client(self):
+        client = self._client
+        self._client = None
+        zoo.close(client)
