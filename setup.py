@@ -31,6 +31,6 @@ if __name__ == "__main__":
         ],
 
         install_requires=[
-            "kazoo.yandex >= 2.0.1.1dev",
+            "kazoo.yandex >= 2.0.1.1",
         ],
     )
