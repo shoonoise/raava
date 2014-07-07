@@ -1,3 +1,4 @@
+import contextlib
 import socket
 import platform
 import uuid
@@ -58,12 +59,39 @@ class StateWriter:
         self._create_node()
 
     def __exit__(self, exc_type, exc_value, traceback):
-        zoo.close(self._client)
+        self._close_client()
 
     def _create_node(self):
         _logger.info("Creating the state ephemeral: %s", self._state_path)
-        self._client.pcreate(self._state_path, None, ephemeral=True, makepath=True)
+        with self._connection() as client:
+            client.pcreate(self._state_path, None, ephemeral=True)
 
     def _write_state(self, state):
         _logger.debug("Writing the state to: %s", self._state_path)
-        self._client.pset(self._state_path, state)
+        with self._connection() as client:
+            client.pset(self._state_path, state)
+
+    @contextlib.contextmanager
+    def _connection(self):
+        if self._client is None:
+            self._client = self._zoo_connect()
+            try:
+                self._client.delete(self._state_path)
+            except zoo.NoNodeError:
+                pass
+            except Exception:
+                self._close_client()
+                raise
+
+        try:
+            yield self._client
+        except Exception:
+            self._close_client()
+            raise
+
+    def _close_client(self):
+        try:
+            zoo.close(self._client)
+        except Exception:
+            _logger.exception("Cannot close client: %s", self._client)
+        self._client = None
