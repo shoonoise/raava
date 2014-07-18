@@ -21,7 +21,7 @@ def setup_path(path):
     if path in sys.path:
         raise RuntimeError("Handlers path \"%s\" is already in sys.path!" % (path))
     assert os.access(path, os.F_OK)
-    sys.path.append(path)
+    sys.path.insert(0, path)
     _logger.debug("Rules root: %s", path)
 
 def setup_import_alias(alias, path):
