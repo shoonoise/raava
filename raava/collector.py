@@ -1,6 +1,6 @@
 import pickle
 import time
-import logging
+import contextlog
 
 from . import application
 from . import zoo
@@ -8,7 +8,6 @@ from . import events
 
 
 ##### Private objects #####
-_logger = logging.getLogger(__name__)
 _collectors = 0
 
 
@@ -53,6 +52,7 @@ class CollectorThread(application.Thread):
             try:
                 # XXX: There is no need to control lock
                 running_dict = self._client.pget(zoo.join(zoo.RUNNING_PATH, task_id))
+                contextlog.get_logger(job_id=running_dict[zoo.RUNNING_JOB_ID], task_id=task_id)
                 control_task_path = zoo.join(zoo.CONTROL_JOBS_PATH, running_dict[zoo.RUNNING_JOB_ID],
                     zoo.CONTROL_TASKS, task_id)
                 created = self._client.pget(zoo.join(control_task_path, zoo.CONTROL_TASK_CREATED))
@@ -83,19 +83,21 @@ class CollectorThread(application.Thread):
             lock = self._client.SingleLock(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.LOCK))
             with lock.try_context() as lock:
                 if lock is not None:
+                    logger = contextlog.get_logger(job_id=job_id)
                     try:
                         finished = events.get_finished_unsafe(self._client, job_id) # XXX: We have own lock ^^^
                         if finished is not None and finished + self._garbage_lifetime <= time.time():
                             self._remove_control(lock, job_id)
-                            _logger.info("Control removed: %s", job_id)
+                            logger.info("Control removed")
                     except (events.NoJobError, zoo.NoNodeError, zoo.TransactionError):
-                        _logger.exception("Cannot remove control")
+                        logger.exception("Cannot remove control")
 
     ###
 
     def _push_back_running(self, lock, task_id):
         running_dict = self._client.pget(zoo.join(zoo.RUNNING_PATH, task_id))
         job_id = running_dict[zoo.RUNNING_JOB_ID]
+        logger = contextlog.get_logger()
         try:
             with self._client.transaction("push_back_running") as trans:
                 lock.release(trans)
@@ -108,18 +110,19 @@ class CollectorThread(application.Thread):
                     }))
                 trans.pset(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS,
                     task_id, zoo.CONTROL_TASK_RECYCLED), time.time())
-            _logger.info("Pushed back: %s", task_id)
+            logger.info("Pushed back")
         except zoo.TransactionError:
-            _logger.exception("Cannot push-back running")
+            logger.exception("Cannot push-back running")
 
     def _remove_running(self, lock, task_id):
+        logger = contextlog.get_logger()
         try:
             with self._client.transaction("remove_running") as trans:
                 lock.release(trans)
                 trans.delete(zoo.join(zoo.RUNNING_PATH, task_id))
-            _logger.info("Running removed: %s", task_id)
+            logger.info("Running removed")
         except zoo.TransactionError:
-            _logger.exception("Cannot remove running")
+            logger.exception("Cannot remove running")
 
     ###
 

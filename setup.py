@@ -32,5 +32,6 @@ if __name__ == "__main__":
 
         install_requires=[
             "kazoo.yandex >= 2.0.1.1",
+            "contextlog >= 0.2",
         ],
     )

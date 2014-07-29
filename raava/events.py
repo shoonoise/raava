@@ -1,14 +1,10 @@
 import uuid
 import pickle
 import time
-import logging
+import contextlog
 
 from . import rules
 from . import zoo
-
-
-##### Private objects #####
-_logger = logging.getLogger(__name__)
 
 
 ##### Exceptions #####
@@ -49,7 +45,7 @@ def add(client, event_root, handler_type, parents_list = None):
         trans.pcreate(zoo.join(control_job_path, zoo.CONTROL_PARENTS), parents_list)
         trans.pcreate(zoo.join(control_job_path, zoo.CONTROL_ADDED), time.time())
 
-    _logger.info("Registered job %s with number %d", job_id, job_number)
+    contextlog.get_logger(job_id=job_id).info("Registered job with number %d", job_number)
     return job_id
 
 def cancel(client, job_id):
