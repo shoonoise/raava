@@ -1,7 +1,7 @@
 import pickle
 import uuid
 import time
-import logging
+import contextlog
 
 from . import application
 from . import rules
@@ -10,7 +10,6 @@ from . import events
 
 
 ##### Private objects #####
-_logger = logging.getLogger(__name__)
 _splitters = 0
 
 
@@ -39,13 +38,14 @@ class SplitterThread(application.Thread):
     def run(self):
         while not self._stop_flag:
             head = events.get_head(self._client)
+            logger = contextlog.get_logger(head=head)
             if head is None:
-                _logger.warning("No HEAD information, fall sleep for 10 seconds...")
+                logger.warning("No HEAD information, fall sleep for 10 seconds...")
                 time.sleep(10) # FIXME: Add watcher
                 continue
 
             if not self._loader.is_version_exists(head):
-                _logger.error("The HEAD module '%s' does not exists, fall sleep for 10 seconds...")
+                logger.error("The HEAD module does not exists, fall sleep for 10 seconds...")
                 time.sleep(10)
                 continue
 
@@ -58,8 +58,10 @@ class SplitterThread(application.Thread):
 
     def _split_input(self, input_dict, head):
         job_id = input_dict[zoo.INPUT_JOB_ID]
+        logger = contextlog.get_logger(job_id=job_id)
+
         handlers_set = rules.get_handlers(input_dict[zoo.INPUT_EVENT], self._loader.get_handlers(head))
-        _logger.info("Split job %s to %d tasks (head: %s)", job_id, len(handlers_set), head)
+        logger.info("Split job to %d tasks (head: %s)", len(handlers_set), head)
 
         job_path = zoo.join(zoo.CONTROL_JOBS_PATH, job_id)
 
@@ -85,11 +87,11 @@ class SplitterThread(application.Thread):
                         zoo.READY_HANDLER: self._make_handler_pickle(handler, input_dict[zoo.INPUT_EVENT]),
                         zoo.READY_STATE:   None,
                     }))
-                _logger.info("... splitting %s --> %s; handler: %s.%s",
-                    job_id, task_id, handler.__module__, handler.__name__)
+                logger.info("... splitting %s --> %s; handler: %s.%s",
+                    job_id, task_id, handler.__module__, handler.__name__, task_id=task_id)
             self._input_queue.consume(trans)
 
-        _logger.info("Split of %s successfully completed", job_id)
+        logger.info("Split successfully completed")
 
     def _make_handler_pickle(self, handler, event_root):
         event_root = event_root.copy()

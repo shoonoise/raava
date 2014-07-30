@@ -8,7 +8,7 @@ import setuptools
 if __name__ == "__main__":
     setuptools.setup(
         name="raava",
-        version="0.18",
+        version="0.19",
         url="https://github.com/yandex-sysmon/raava",
         license="GPLv3",
         author="Devaev Maxim",
@@ -32,5 +32,6 @@ if __name__ == "__main__":
 
         install_requires=[
             "kazoo.yandex >= 2.0.1.1",
+            "contextlog >= 0.2",
         ],
     )

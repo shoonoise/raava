@@ -4,7 +4,7 @@ import pickle
 import inspect
 import traceback
 import time
-import logging
+import contextlog
 
 from . import application
 from . import zoo
@@ -16,7 +16,6 @@ _TASK_LOCK   = "lock"
 
 
 ##### Private objects #####
-_logger = logging.getLogger(__name__)
 _workers = 0
 
 
@@ -84,13 +83,15 @@ class WorkerThread(application.Thread):
         handler = ( ready_dict[zoo.READY_HANDLER] if state is None else None )
         assert task_id not in self._threads_dict, "Duplicating tasks"
 
+        logger = contextlog.get_logger(job_id=job_id, task_id=task_id)
+
         lock_path = zoo.join(zoo.RUNNING_PATH, task_id, zoo.LOCK)
         try:
             parents_list = self._client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_PARENTS))
             created = self._client.pget(zoo.join(zoo.CONTROL_JOBS_PATH, job_id, zoo.CONTROL_TASKS,
                 task_id, zoo.CONTROL_TASK_CREATED))
         except zoo.NoNodeError:
-            _logger.exception("Missing the necessary control nodes for the ready job")
+            logger.exception("Missing the necessary control nodes for the ready job")
             return
 
         with self._client.transaction("init_task") as trans:
@@ -122,7 +123,7 @@ class WorkerThread(application.Thread):
             _TASK_LOCK:   self._client.SingleLock(lock_path),
         }
         message = ( "Spawned the new job" if state is None else "Respawned the old job" )
-        _logger.info("%s: %s; task: %s (parents: %s)", message, job_id, task_id, parents_list)
+        logger.info("%s (parents: %s)", message, parents_list)
         task_thread.start()
 
     def _cleanup(self):
@@ -130,7 +131,7 @@ class WorkerThread(application.Thread):
             if not task_dict[_TASK_THREAD].is_alive():
                 task_dict[_TASK_LOCK].release()
                 self._threads_dict.pop(task_id)
-                _logger.debug("Cleanup: %s", task_id)
+                contextlog.get_logger(task_id=task_id).debug("Cleanup")
 
     ### Children threads ###
 
@@ -150,6 +151,7 @@ class WorkerThread(application.Thread):
     def _saver_unsafe(self, task, stack_list, exc, state):
         job_id = task.get_job_id()
         task_id = task.get_task_id()
+        logger = contextlog.get_logger(job_id=job_id, task_id=task_id)
         try:
             with self._client.transaction("saver") as trans:
                 trans.pset(zoo.join(zoo.RUNNING_PATH, task_id), {
@@ -172,9 +174,9 @@ class WorkerThread(application.Thread):
                     ] ))
                 trans.pset(zoo.join(control_task_path, zoo.CONTROL_TASK_EXC), exc)
         except zoo.TransactionError:
-            _logger.exception("saver error, current task has been dropped")
+            logger.exception("saver error, current task has been dropped")
             raise
-        _logger.debug("Saved; status: %s", status)
+        logger.debug("Saved; status: %s", status)
 
 
 
@@ -201,21 +203,26 @@ class _TaskThread(threading.Thread):
     ### Private ###
 
     def run(self):
+        logger = contextlog.get_logger(
+            job_id=self._task.get_job_id(),
+            task_id=self._task.get_task_id(),
+        )
+
         try:
             self._task.init_cont()
         except Exception:
-            _logger.exception("Cont-init error")
+            logger.exception("Cont-init error")
             self._saver(self._task, None, traceback.format_exc(), None)
 
         while not self._stop_flag and self._task.is_pending():
             if not self._controller(self._task):
                 self._saver(self._task, None, None, None)
-                _logger.info("Task is cancelled")
+                logger.info("Task is cancelled")
                 return
 
             (stack_list, exc, state) = self._task.step()
             if exc is not None:
-                _logger.error("Unhandled step() error")
+                logger.error("Unhandled step() error")
                 self._saver(self._task, None, exc, None)
                 return
 
@@ -223,9 +230,9 @@ class _TaskThread(threading.Thread):
 
         if not self._task.is_pending():
             self._saver(self._task, None, None, None)
-            _logger.info("Task is finished")
+            logger.info("Task is finished")
         else:
-            _logger.info("Task is stopped")
+            logger.info("Task is stopped")
 
 class _Task:
     def __init__(self, parents_list, job_id, task_id, handler, state): # pylint: disable=R0913
@@ -259,17 +266,18 @@ class _Task:
 
     def init_cont(self):
         assert self._cont is None, "Continulet is already constructed"
+        logger = contextlog.get_logger(job_id=self._job_id, task_id=self._task_id)
         if self._handler is not None:
-            _logger.debug("Creating a new continulet...")
+            logger.debug("Creating a new continulet...")
             handler = pickle.loads(self._handler)
             cont = _continuation.continulet(lambda _: handler())
         elif self._state is not None:
-            _logger.debug("Restoring the old state...")
+            logger.debug("Restoring the old state...")
             cont = pickle.loads(self._state)
             assert isinstance(cont, _continuation.continulet), "The unpickled state is a garbage!"
         else:
             raise RuntimeError("Required handler OR state")
-        _logger.debug("... continulet is ready")
+        logger.debug("... continulet is ready")
         self._cont = cont
 
     def is_pending(self):
@@ -279,16 +287,16 @@ class _Task:
     def step(self):
         assert self._cont is not None, "Run init_cont() first"
         assert self._cont.is_pending(), "Attempt to step() on a finished task"
-        _logger.debug("Activating...")
+        logger = contextlog.get_logger(job_id=self._job_id, task_id=self._task_id)
+        logger.debug("Activating...")
         try:
             stack_list = self._cont.switch()
-            _logger.debug("... stack --> %s", str(stack_list))
+            logger.debug("... stack --> %s", str(stack_list))
             return (stack_list, None, pickle.dumps(self._cont))
         except Exception:
-            _logger.exception("Step error")
+            logger.exception("Step error")
             # self._cont.switch() switches the stack, so we will see a valid exception, up to this place in the rule.
             # sys.exc_info() return a raw exception data. Some of them can't be pickled, for example, traceback-object.
             # For those who use the API, easier to read the text messages. traceback.format_exc() simply converts data
             # from sys.exc_info() into a string.
             return (None, traceback.format_exc(), None)
-
